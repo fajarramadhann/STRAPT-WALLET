@@ -1,13 +1,8 @@
-# Strapt - Modern Web3 Financial Hub
+# Strapt - Secure Transfer and Payment
 
-Strapt is a modern, user-friendly Web3 application that enables secure cryptocurrency transfers, payment streaming, and DeFi savings management across multiple networks.
+Strapt is trustless DeFi platform for protected crypto transfers, savings asset to achieve goals and simple streaming payments with a clean UI and UX.
 
 ## 🌟 Features
-
-- **Multi-Chain Support**
-  - Base Sepolia Network
-  - Ethereum Sepolia
-  - SEI Pacific Network
 
 - **Core Functionality**
   - Direct & Protected Transfers
