@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Clock, ShieldCheck, Copy, QrCode, LockKeyhole, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, ShieldCheck, Copy, QrCode, LockKeyhole, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -8,88 +8,183 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import QRCode from '@/components/QRCode';
 import QRCodeScanner from '@/components/QRCodeScanner';
+import { useAccount } from 'wagmi';
+import { useProtectedTransfer } from '@/hooks/use-protected-transfer';
 
 interface TransferDetails {
   id: string;
   sender: string;
+  recipient: string;
+  tokenAddress: string;
+  tokenSymbol: string;
   amount: string;
-  note?: string;
-  expiresAt: Date;
-  passwordProtected: boolean;
+  expiry: number;
+  status: number;
+  createdAt: number;
+  isLinkTransfer: boolean;
+  passwordProtected?: boolean; // For backward compatibility
 }
 
 const Claims = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
+  const { address } = useAccount();
   const [showQR, setShowQR] = useState(false);
   const [activeTransfer, setActiveTransfer] = useState<TransferDetails | null>(null);
-  const [password, setPassword] = useState('');
+  const [claimCode, setClaimCode] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [pendingClaims, setPendingClaims] = useState<TransferDetails[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showManualClaimDialog, setShowManualClaimDialog] = useState(false);
+  const [manualTransferId, setManualTransferId] = useState('');
+  const [manualClaimCode, setManualClaimCode] = useState('');
+  const [manualClaimError, setManualClaimError] = useState('');
 
-  // Mock data - in a real app this would come from API
-  const pendingClaims: TransferDetails[] = [
-    {
-      id: 'tx1234',
-      sender: '@mark.sei',
-      amount: '50.00',
-      note: 'For dinner last week',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      passwordProtected: false
-    },
-    {
-      id: 'tx5678',
-      sender: '@alice.sei',
-      amount: '25.50',
-      expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
-      passwordProtected: true
-    }
-  ];
+  // Get claim functions from useProtectedTransfer
+  const {
+    claimTransfer,
+    claimLinkTransfer,
+    useTransferDetails,
+    isPasswordProtected,
+    getTransferDetails,
+  } = useProtectedTransfer();
+
+  // Helper function to shorten transfer IDs
+  const shortenTransferId = (id: string) => {
+    if (!id) return '';
+    return id.length > 16 ? `${id.slice(0, 8)}...${id.slice(-8)}` : id;
+  };
 
   // Check for claim ID in URL query parameters
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const claimId = params.get('id');
+    const code = params.get('code');
 
     if (claimId) {
-      const claim = pendingClaims.find(claim => claim.id === claimId);
-      if (claim) {
-        if (claim.passwordProtected) {
-          setActiveTransfer(claim);
-          setShowPasswordDialog(true);
-        } else {
-          handleClaim(claimId);
-        }
+      // If we have a claim code in the URL, show the password dialog
+      if (code) {
+        setManualTransferId(claimId);
+        setManualClaimCode(code);
+        setShowPasswordDialog(true);
       } else {
-        toast({
-          title: "Claim Not Found",
-          description: "The specified claim could not be found",
-          variant: "destructive",
-        });
+        // Try to claim as a link transfer (no password)
+        handleClaimLinkTransfer(claimId);
       }
     }
   }, [location.search]);
 
-  const formatTimeRemaining = (date: Date) => {
-    const now = new Date();
-    const diffMs = date.getTime() - now.getTime();
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const formatTimeRemaining = (timestamp: number) => {
+    const now = Math.floor(Date.now() / 1000);
+    const diffSecs = timestamp - now;
+
+    if (diffSecs <= 0) {
+      return 'Expired';
+    }
+
+    const diffHrs = Math.floor(diffSecs / 3600);
+    const diffMins = Math.floor((diffSecs % 3600) / 60);
 
     return `${diffHrs}h ${diffMins}m`;
   };
 
-  const handleClaim = (transferId: string) => {
-    toast({
-      title: "Transfer Claimed",
-      description: "Funds have been added to your wallet",
-    });
-    navigate('/app');
+  // Handle claiming a transfer with password
+  const handleClaimWithPassword = async (transferId: string, password: string) => {
+    if (!address) {
+      toast.error('Please connect your wallet to claim this transfer');
+      return false;
+    }
+
+    setIsValidating(true);
+    setPasswordError('');
+
+    try {
+      const success = await claimTransfer(transferId, password);
+
+      if (success) {
+        toast.success('Transfer claimed successfully!');
+        setShowPasswordDialog(false);
+        setClaimCode('');
+        // Refresh the list of pending claims
+        // fetchPendingClaims();
+        return true;
+      } else {
+        setPasswordError('Failed to claim transfer. Please check the password.');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error claiming transfer:', error);
+      setPasswordError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Handle claiming a link transfer (no password)
+  const handleClaimLinkTransfer = async (transferId: string) => {
+    if (!address) {
+      toast.error('Please connect your wallet to claim this transfer');
+      return false;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // First, check if the transfer requires a password
+      const requiresPassword = await isPasswordProtected(transferId);
+
+      if (requiresPassword) {
+        // Get transfer details to show in the password dialog
+        const details = await getTransferDetails(transferId);
+        if (details) {
+          setActiveTransfer({
+            id: transferId,
+            sender: details.sender,
+            recipient: details.recipient,
+            tokenAddress: details.tokenAddress,
+            tokenSymbol: details.tokenSymbol,
+            amount: details.amount,
+            expiry: details.expiry,
+            status: details.status,
+            createdAt: details.createdAt,
+            isLinkTransfer: details.isLinkTransfer,
+            passwordProtected: true
+          });
+          setManualTransferId(transferId);
+          setShowPasswordDialog(true);
+          setIsLoading(false);
+          return false; // Don't proceed with claim yet
+        }
+
+        toast.error('This transfer requires a claim code. Please enter it to proceed.');
+        return false;
+      }
+
+      // If no password required, proceed with claim
+      const success = await claimLinkTransfer(transferId);
+
+      if (success) {
+        toast.success('Transfer claimed successfully!');
+        // Refresh the list of pending claims
+        // fetchPendingClaims();
+        return true;
+      }
+
+      toast.error('Failed to claim transfer. Please check the transfer ID.');
+      return false;
+    } catch (error) {
+      console.error('Error claiming link transfer:', error);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleShowQR = (transfer: TransferDetails) => {
@@ -105,32 +200,20 @@ const Claims = () => {
     });
   };
 
-  // Helper function to shorten transfer IDs for display
-  const shortenTransferId = (id: string) => {
-    return id.length > 16 ? `${id.slice(0, 8)}...${id.slice(-8)}` : id;
-  };
-
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!activeTransfer) return;
+    if (!manualTransferId) {
+      setPasswordError('Transfer ID is required');
+      return;
+    }
 
-    setIsValidating(true);
-    setPasswordError('');
+    if (!manualClaimCode) {
+      setPasswordError('Claim code is required');
+      return;
+    }
 
-    // Simulate password validation
-    setTimeout(() => {
-      // For demo, we'll use a simple password "truststream"
-      if (password === 'truststream') {
-        handleClaim(activeTransfer.id);
-        setShowPasswordDialog(false);
-        setPassword('');
-        setIsValidating(false);
-      } else {
-        setPasswordError('Incorrect password');
-        setIsValidating(false);
-      }
-    }, 1500);
+    await handleClaimWithPassword(manualTransferId, manualClaimCode);
   };
 
   const handleScanSuccess = (decodedText: string) => {
@@ -139,32 +222,23 @@ const Claims = () => {
 
       if (url.pathname.includes('/claim/')) {
         const claimId = url.pathname.split('/claim/')[1];
+        const params = new URLSearchParams(url.search);
+        const code = params.get('code');
 
         if (claimId) {
-          const claim = pendingClaims.find(claim => claim.id === claimId);
-
-          if (claim) {
-            if (claim.passwordProtected) {
-              setActiveTransfer(claim);
-              setShowPasswordDialog(true);
-            } else {
-              handleClaim(claimId);
-            }
+          if (code) {
+            // If we have a claim code, show the password dialog
+            setManualTransferId(claimId);
+            setManualClaimCode(code);
+            setShowPasswordDialog(true);
           } else {
-            toast({
-              title: "Claim Not Found",
-              description: "The scanned QR code contains an invalid claim",
-              variant: "destructive",
-            });
+            // Try to claim as a link transfer (no password)
+            handleClaimLinkTransfer(claimId);
           }
         }
       }
     } catch (e) {
-      toast({
-        title: "Invalid QR Code",
-        description: "Could not parse the QR code data",
-        variant: "destructive",
-      });
+      toast.error('Invalid QR Code. Could not parse the QR code data');
     }
   };
 
@@ -179,12 +253,20 @@ const Claims = () => {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-semibold">Pending Claims</h1>
-        <div className="ml-auto">
+        <h1 className="text-xl font-semibold">Claim Transfers</h1>
+        <div className="ml-auto flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowManualClaimDialog(true)}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Claim New
+          </Button>
           <QRCodeScanner
             buttonVariant="outline"
             buttonSize="sm"
-            buttonText="Scan"
+            buttonText="Scan QR"
             onScanSuccess={handleScanSuccess}
           />
         </div>
@@ -281,11 +363,20 @@ const Claims = () => {
           <ShieldCheck className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
           <h3 className="font-medium mb-1">No Pending Claims</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            You don't have any protected transfers to claim
+            You don't have any pending transfers to claim. Use the "Claim New" button to claim a transfer using its ID and claim code, or scan a QR code.
           </p>
-          <Button onClick={() => navigate('/app')}>
-            Return to Dashboard
-          </Button>
+          <div className="flex gap-2 justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setShowManualClaimDialog(true)}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Claim New Transfer
+            </Button>
+            <Button onClick={() => navigate('/app')}>
+              Return to Dashboard
+            </Button>
+          </div>
         </div>
       )}
 
@@ -312,26 +403,64 @@ const Claims = () => {
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Password</DialogTitle>
+            <DialogTitle>Enter Claim Code</DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePasswordSubmit}>
             <div className="space-y-4">
-              {activeTransfer && (
+              {activeTransfer ? (
+                <div className="space-y-4">
+                  <div className="bg-secondary p-3 rounded-lg">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-sm text-muted-foreground">From:</span>
+                      <span className="font-medium">
+                        {activeTransfer.sender && activeTransfer.sender.length > 12
+                          ? `${activeTransfer.sender.slice(0, 6)}...${activeTransfer.sender.slice(-4)}`
+                          : activeTransfer.sender}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-sm text-muted-foreground">Amount:</span>
+                      <span className="font-medium">
+                        {activeTransfer.amount} {activeTransfer.tokenSymbol}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Transfer ID:</span>
+                      <span className="font-mono text-xs">
+                        {shortenTransferId(activeTransfer.id)}
+                      </span>
+                    </div>
+                    {activeTransfer.expiry && (
+                      <div className="flex justify-between mt-2">
+                        <span className="text-sm text-muted-foreground">Expires:</span>
+                        <span className="font-medium">
+                          {new Date(activeTransfer.expiry * 1000).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-amber-500 font-medium flex items-center justify-center">
+                      <LockKeyhole className="h-4 w-4 mr-1" />
+                      This transfer requires a claim code
+                    </p>
+                  </div>
+                </div>
+              ) : (
                 <div className="text-center mb-4">
                   <p className="text-sm text-muted-foreground">
-                    This transfer from {activeTransfer.sender} for {activeTransfer.amount} SEI is password protected
+                    Enter the claim code to claim this transfer
                   </p>
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="claimCode">Claim Code</Label>
                 <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter the transfer password"
+                  id="claimCode"
+                  value={manualClaimCode}
+                  onChange={(e) => setManualClaimCode(e.target.value)}
+                  placeholder="Enter the claim code"
                   className={passwordError ? "border-red-500" : ""}
                   disabled={isValidating}
                 />
@@ -340,18 +469,228 @@ const Claims = () => {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={isValidating}>
+              <Button type="submit" className="w-full" disabled={isValidating || !manualClaimCode}>
                 {isValidating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verifying...
+                    Claiming...
                   </>
                 ) : (
-                  "Verify & Claim"
+                  "Claim Transfer"
                 )}
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual claim dialog */}
+      <Dialog open={showManualClaimDialog} onOpenChange={setShowManualClaimDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Claim a Transfer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Enter the transfer ID and claim code (if required) to claim a transfer
+            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="transferId">Transfer ID</Label>
+              <Input
+                id="transferId"
+                value={manualTransferId}
+                onChange={(e) => setManualTransferId(e.target.value)}
+                placeholder="Enter transfer ID"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="manualClaimCode">Claim Code (if required)</Label>
+              <Input
+                id="manualClaimCode"
+                value={manualClaimCode}
+                onChange={(e) => setManualClaimCode(e.target.value)}
+                placeholder="Enter claim code if needed"
+              />
+            </div>
+
+            {/* Button to fetch transfer details */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={async () => {
+                if (!manualTransferId) {
+                  setManualClaimError('Transfer ID is required');
+                  return;
+                }
+
+                setIsLoading(true);
+                try {
+                  const details = await getTransferDetails(manualTransferId);
+                  if (details) {
+                    setActiveTransfer({
+                      id: manualTransferId,
+                      sender: details.sender,
+                      recipient: details.recipient,
+                      tokenAddress: details.tokenAddress,
+                      tokenSymbol: details.tokenSymbol,
+                      amount: details.amount,
+                      expiry: details.expiry,
+                      status: details.status,
+                      createdAt: details.createdAt,
+                      isLinkTransfer: details.isLinkTransfer,
+                      passwordProtected: await isPasswordProtected(manualTransferId)
+                    });
+
+                    // Show a toast with the details
+                    toast.success('Transfer details loaded');
+                  } else {
+                    setManualClaimError('Transfer not found. Please check the ID and try again.');
+                  }
+                } catch (error) {
+                  console.error('Error fetching transfer details:', error);
+                  setManualClaimError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading || !manualTransferId}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                "Check Transfer Details"
+              )}
+            </Button>
+
+            {/* Display transfer details if available */}
+            {activeTransfer && (
+              <div className="bg-secondary p-3 rounded-lg">
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm text-muted-foreground">From:</span>
+                  <span className="font-medium">
+                    {activeTransfer.sender && activeTransfer.sender.length > 12
+                      ? `${activeTransfer.sender.slice(0, 6)}...${activeTransfer.sender.slice(-4)}`
+                      : activeTransfer.sender}
+                  </span>
+                </div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm text-muted-foreground">Amount:</span>
+                  <span className="font-medium">
+                    {activeTransfer.amount} {activeTransfer.tokenSymbol}
+                  </span>
+                </div>
+                {activeTransfer.expiry && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Expires:</span>
+                    <span className="font-medium">
+                      {new Date(activeTransfer.expiry * 1000).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {activeTransfer.passwordProtected && (
+                  <div className="mt-2 pt-2 border-t border-border">
+                    <p className="text-sm text-amber-500 font-medium flex items-center">
+                      <LockKeyhole className="h-4 w-4 mr-1" />
+                      This transfer requires a claim code
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {manualClaimError && (
+              <p className="text-sm text-red-500">{manualClaimError}</p>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowManualClaimDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={async () => {
+                  setManualClaimError('');
+
+                  if (!manualTransferId) {
+                    setManualClaimError('Transfer ID is required');
+                    return;
+                  }
+
+                  try {
+                    // First, get transfer details to show the user what they're claiming
+                    const details = await getTransferDetails(manualTransferId);
+                    if (!details) {
+                      setManualClaimError('Transfer not found. Please check the ID and try again.');
+                      return;
+                    }
+
+                    // Check if transfer requires password
+                    const requiresPassword = await isPasswordProtected(manualTransferId);
+
+                    if (requiresPassword && !manualClaimCode) {
+                      // Set active transfer for the password dialog
+                      setActiveTransfer({
+                        id: manualTransferId,
+                        sender: details.sender,
+                        recipient: details.recipient,
+                        tokenAddress: details.tokenAddress,
+                        tokenSymbol: details.tokenSymbol,
+                        amount: details.amount,
+                        expiry: details.expiry,
+                        status: details.status,
+                        createdAt: details.createdAt,
+                        isLinkTransfer: details.isLinkTransfer,
+                        passwordProtected: true
+                      });
+
+                      setShowManualClaimDialog(false);
+                      setShowPasswordDialog(true);
+                      return;
+                    }
+
+                    if (manualClaimCode) {
+                      // Try with password
+                      const success = await handleClaimWithPassword(manualTransferId, manualClaimCode);
+                      if (success) {
+                        setShowManualClaimDialog(false);
+                        setManualTransferId('');
+                        setManualClaimCode('');
+                      }
+                    } else {
+                      // Try as link transfer
+                      const success = await handleClaimLinkTransfer(manualTransferId);
+                      if (success) {
+                        setShowManualClaimDialog(false);
+                        setManualTransferId('');
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error in manual claim:', error);
+                    setManualClaimError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  }
+                }}
+                disabled={isLoading || isValidating}
+              >
+                {isLoading || isValidating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Claiming...
+                  </>
+                ) : (
+                  "Claim Transfer"
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

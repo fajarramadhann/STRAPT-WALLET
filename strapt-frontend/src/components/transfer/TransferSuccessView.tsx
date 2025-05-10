@@ -64,52 +64,68 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
           ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}`
           : recipient} has been {transferType === 'direct' ? 'sent' : 'created'}.</p>
 
-        {transferType === 'claim' && (
-          <div className="border border-border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-2">Share this link with the recipient:</p>
-            <div className="bg-secondary p-2 rounded text-sm mb-2 overflow-hidden text-ellipsis">
-              {transferLink}
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <Button variant="outline" size="sm" onClick={handleCopyLink}>
-                <Copy className="h-4 w-4 mr-1" /> Copy Link
-              </Button>
-              <Button variant="outline" size="sm" onClick={onShowQR}>
-                <QrCode className="h-4 w-4 mr-1" /> Show QR
-              </Button>
-            </div>
-
-            {/* Display Transfer ID */}
-            <div className="mt-3 border-t border-border pt-3">
-              <p className="text-sm text-muted-foreground mb-1">Transfer ID:</p>
-              <div className="bg-secondary p-2 rounded mb-2 font-mono text-xs overflow-hidden text-ellipsis">
-                {transferId ? shortenTransferId(transferId) : 'Not available'}
+        {/* For both direct and claim transfers */}
+        <div className="border border-border rounded-lg p-4">
+          {transferType === 'claim' ? (
+            <>
+              <p className="text-sm text-muted-foreground mb-2">Share this link with the recipient:</p>
+              <div className="bg-secondary p-2 rounded text-sm mb-2 overflow-hidden text-ellipsis">
+                {transferLink}
               </div>
-              <Button variant="outline" size="sm" onClick={handleCopyTransferId} className="w-full mb-3" disabled={!transferId}>
-                <Copy className="h-4 w-4 mr-1" /> Copy ID
-              </Button>
-            </div>
-
-            {/* Display Claim Code if available */}
-            {withPassword && claimCode && (
-              <div className="mt-3 border-t border-border pt-3">
-                <div className="flex items-center justify-center mb-1">
-                  <Key className="h-4 w-4 mr-1 text-amber-500" />
-                  <p className="text-sm text-amber-500 font-medium">Claim Code (Keep Secure!)</p>
-                </div>
-                <div className="bg-amber-500/10 p-3 rounded text-center mb-2">
-                  <span className="text-xl font-mono tracking-widest">{claimCode}</span>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleCopyClaimCode} className="w-full">
-                  <Copy className="h-4 w-4 mr-1" /> Copy Code
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <Button variant="outline" size="sm" onClick={handleCopyLink}>
+                  <Copy className="h-4 w-4 mr-1" /> Copy Link
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Share this code securely with the recipient. They will need it to claim the funds.
-                </p>
+                <Button variant="outline" size="sm" onClick={onShowQR}>
+                  <QrCode className="h-4 w-4 mr-1" /> Show QR
+                </Button>
               </div>
-            )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground mb-2">Share these details with the recipient:</p>
+              <p className="text-sm mb-3">The recipient will need both the Transfer ID and {withPassword ? 'Claim Code' : 'their wallet'} to claim the funds.</p>
+            </>
+          )}
+
+          {/* Display Transfer ID for both types */}
+          <div className={transferType === 'claim' ? "mt-3 border-t border-border pt-3" : ""}>
+            <p className="text-sm text-muted-foreground mb-1">Transfer ID:</p>
+            <div className="bg-secondary p-2 rounded mb-2 font-mono text-xs overflow-hidden text-ellipsis">
+              {transferId ? shortenTransferId(transferId) : 'Not available'}
+            </div>
+            <Button variant="outline" size="sm" onClick={handleCopyTransferId} className="w-full mb-3" disabled={!transferId}>
+              <Copy className="h-4 w-4 mr-1" /> Copy ID
+            </Button>
           </div>
-        )}
+
+          {/* Display Claim Code if available (for both types if password protected) */}
+          {withPassword && claimCode && (
+            <div className="mt-3 border-t border-border pt-3">
+              <div className="flex items-center justify-center mb-1">
+                <Key className="h-4 w-4 mr-1 text-amber-500" />
+                <p className="text-sm text-amber-500 font-medium">Claim Code (Keep Secure!)</p>
+              </div>
+              <div className="bg-amber-500/10 p-3 rounded text-center mb-2">
+                <span className="text-xl font-mono tracking-widest">{claimCode}</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleCopyClaimCode} className="w-full">
+                <Copy className="h-4 w-4 mr-1" /> Copy Code
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Share this code securely with the recipient. They will need it to claim the funds.
+              </p>
+            </div>
+          )}
+
+          {/* Display claim instructions */}
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="text-sm text-muted-foreground mb-1">Claim Instructions:</p>
+            <p className="text-sm">
+              Recipient should visit: <span className="font-medium">{window.location.origin}/app/claims</span>
+            </p>
+          </div>
+        </div>
 
         {withTimeout && transferType === 'claim' && (
           <div className="bg-secondary/30 p-3 rounded-md text-sm">

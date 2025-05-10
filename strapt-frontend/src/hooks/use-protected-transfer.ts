@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, parseUnits, formatUnits, keccak256, toBytes, encodeFunctionData } from 'viem';
 import { toast } from 'sonner';
@@ -445,27 +445,50 @@ export function useProtectedTransfer() {
 
       // Import config for wagmi actions
       const { config } = await import('@/providers/XellarProvider');
-      const { getAccount } = await import('wagmi/actions');
+      const { getAccount, simulateContract, writeContract: writeContractAction } = await import('wagmi/actions');
       const account = getAccount(config);
 
-      if (!account.address) {
+      if (!account || !account.address) {
+        console.error("No wallet connected or account is undefined");
         throw new Error("No wallet connected");
       }
 
-      // Claim transfer
-      const hash = await writeContract(config, {
-        abi: ProtectedTransferABI.abi,
-        address: PROTECTED_TRANSFER_ADDRESS,
-        functionName: 'claimTransfer',
-        args: [transferId as `0x${string}`, claimCode],
-        account: account.address,
-        chain: config.chains[0], // Use the first chain in the config
-      });
+      console.log('Claiming transfer with ID:', transferId, 'and claim code:', claimCode);
 
-      // Wait for transaction to be confirmed
-      await waitForTransactionReceipt(config, { hash });
+      try {
+        // Simulate the transaction first
+        const { request } = await simulateContract(config, {
+          abi: ProtectedTransferABI.abi,
+          address: PROTECTED_TRANSFER_ADDRESS,
+          functionName: 'claimTransfer',
+          args: [transferId as `0x${string}`, claimCode],
+          account: account.address,
+        });
 
-      return true;
+        // Send the transaction - this will prompt the user to sign
+        console.log('Sending transaction request:', request);
+        const hash = await writeContractAction(config, request);
+        console.log('Transaction sent with hash:', hash);
+
+        // Wait for transaction to be confirmed
+        console.log('Waiting for transaction receipt with hash:', hash);
+        const receipt = await waitForTransactionReceipt(config, { hash });
+        console.log('Transaction receipt received:', receipt);
+
+        return true;
+      } catch (error) {
+        console.error('Error in claim transfer transaction:', error);
+        // Check if it's a user rejection
+        if (error.message && (
+            error.message.includes('rejected') ||
+            error.message.includes('denied') ||
+            error.message.includes('cancelled') ||
+            error.message.includes('canceled')
+          )) {
+          throw new Error('Transaction was rejected by the user');
+        }
+        throw new Error(`Failed to claim transfer: ${error instanceof Error ? error.message : String(error)}`);
+      }
     } catch (error) {
       console.error('Error claiming transfer:', error);
       toast.error('Failed to claim transfer');
@@ -484,27 +507,50 @@ export function useProtectedTransfer() {
 
       // Import config for wagmi actions
       const { config } = await import('@/providers/XellarProvider');
-      const { getAccount } = await import('wagmi/actions');
+      const { getAccount, simulateContract, writeContract: writeContractAction } = await import('wagmi/actions');
       const account = getAccount(config);
 
-      if (!account.address) {
+      if (!account || !account.address) {
+        console.error("No wallet connected or account is undefined");
         throw new Error("No wallet connected");
       }
 
-      // Claim link transfer
-      const hash = await writeContract(config, {
-        abi: ProtectedTransferABI.abi,
-        address: PROTECTED_TRANSFER_ADDRESS,
-        functionName: 'claimLinkTransfer',
-        args: [transferId as `0x${string}`],
-        account: account.address,
-        chain: config.chains[0], // Use the first chain in the config
-      });
+      console.log('Claiming link transfer with ID:', transferId);
 
-      // Wait for transaction to be confirmed
-      await waitForTransactionReceipt(config, { hash });
+      try {
+        // Simulate the transaction first
+        const { request } = await simulateContract(config, {
+          abi: ProtectedTransferABI.abi,
+          address: PROTECTED_TRANSFER_ADDRESS,
+          functionName: 'claimLinkTransfer',
+          args: [transferId as `0x${string}`],
+          account: account.address,
+        });
 
-      return true;
+        // Send the transaction - this will prompt the user to sign
+        console.log('Sending transaction request:', request);
+        const hash = await writeContractAction(config, request);
+        console.log('Transaction sent with hash:', hash);
+
+        // Wait for transaction to be confirmed
+        console.log('Waiting for transaction receipt with hash:', hash);
+        const receipt = await waitForTransactionReceipt(config, { hash });
+        console.log('Transaction receipt received:', receipt);
+
+        return true;
+      } catch (error) {
+        console.error('Error in claim link transfer transaction:', error);
+        // Check if it's a user rejection
+        if (error.message && (
+            error.message.includes('rejected') ||
+            error.message.includes('denied') ||
+            error.message.includes('cancelled') ||
+            error.message.includes('canceled')
+          )) {
+          throw new Error('Transaction was rejected by the user');
+        }
+        throw new Error(`Failed to claim link transfer: ${error instanceof Error ? error.message : String(error)}`);
+      }
     } catch (error) {
       console.error('Error claiming link transfer:', error);
       toast.error('Failed to claim link transfer');
@@ -523,27 +569,50 @@ export function useProtectedTransfer() {
 
       // Import config for wagmi actions
       const { config } = await import('@/providers/XellarProvider');
-      const { getAccount } = await import('wagmi/actions');
+      const { getAccount, simulateContract, writeContract: writeContractAction } = await import('wagmi/actions');
       const account = getAccount(config);
 
-      if (!account.address) {
+      if (!account || !account.address) {
+        console.error("No wallet connected or account is undefined");
         throw new Error("No wallet connected");
       }
 
-      // Refund transfer
-      const hash = await writeContract(config, {
-        abi: ProtectedTransferABI.abi,
-        address: PROTECTED_TRANSFER_ADDRESS,
-        functionName: 'refundTransfer',
-        args: [transferId as `0x${string}`],
-        account: account.address,
-        chain: config.chains[0], // Use the first chain in the config
-      });
+      console.log('Refunding transfer with ID:', transferId);
 
-      // Wait for transaction to be confirmed
-      await waitForTransactionReceipt(config, { hash });
+      try {
+        // Simulate the transaction first
+        const { request } = await simulateContract(config, {
+          abi: ProtectedTransferABI.abi,
+          address: PROTECTED_TRANSFER_ADDRESS,
+          functionName: 'refundTransfer',
+          args: [transferId as `0x${string}`],
+          account: account.address,
+        });
 
-      return true;
+        // Send the transaction - this will prompt the user to sign
+        console.log('Sending transaction request:', request);
+        const hash = await writeContractAction(config, request);
+        console.log('Transaction sent with hash:', hash);
+
+        // Wait for transaction to be confirmed
+        console.log('Waiting for transaction receipt with hash:', hash);
+        const receipt = await waitForTransactionReceipt(config, { hash });
+        console.log('Transaction receipt received:', receipt);
+
+        return true;
+      } catch (error) {
+        console.error('Error in refund transfer transaction:', error);
+        // Check if it's a user rejection
+        if (error.message && (
+            error.message.includes('rejected') ||
+            error.message.includes('denied') ||
+            error.message.includes('cancelled') ||
+            error.message.includes('canceled')
+          )) {
+          throw new Error('Transaction was rejected by the user');
+        }
+        throw new Error(`Failed to refund transfer: ${error instanceof Error ? error.message : String(error)}`);
+      }
     } catch (error) {
       console.error('Error refunding transfer:', error);
       toast.error('Failed to refund transfer');
@@ -555,7 +624,7 @@ export function useProtectedTransfer() {
 
   // Get transfer details
   const useTransferDetails = (transferId: string | null) => {
-    return useReadContract({
+    const { data, isLoading, error } = useReadContract({
       abi: ProtectedTransferABI.abi,
       address: PROTECTED_TRANSFER_ADDRESS,
       functionName: 'getTransfer',
@@ -564,6 +633,46 @@ export function useProtectedTransfer() {
         enabled: !!transferId,
       }
     });
+
+    // Process the data if available
+    const processedData = useMemo(() => {
+      if (!data) return null;
+
+      // The contract returns an array of values
+      const [sender, recipient, tokenAddress, amount, expiry, status, createdAt, isLinkTransfer] = data as [
+        string, string, string, bigint, bigint, number, bigint, boolean
+      ];
+
+      // Determine token symbol based on token address
+      let tokenSymbol = 'Unknown';
+      if (tokenAddress.toLowerCase() === USDC_ADDRESS.toLowerCase()) {
+        tokenSymbol = 'USDC';
+      } else if (tokenAddress.toLowerCase() === IDRX_ADDRESS.toLowerCase()) {
+        tokenSymbol = 'IDRX';
+      }
+
+      // Format amount based on token
+      const decimals = tokenSymbol === 'USDC' ? USDC_DECIMALS : IDRX_DECIMALS;
+      const formattedAmount = formatUnits(amount, decimals);
+
+      return {
+        sender,
+        recipient,
+        tokenAddress,
+        tokenSymbol,
+        amount: formattedAmount,
+        expiry: Number(expiry),
+        status,
+        createdAt: Number(createdAt),
+        isLinkTransfer
+      };
+    }, [data]);
+
+    return {
+      data: processedData,
+      isLoading,
+      error
+    };
   };
 
   // Check if a transfer is claimable
@@ -577,6 +686,130 @@ export function useProtectedTransfer() {
         enabled: !!transferId,
       }
     });
+  };
+
+  // Check if a transfer requires a password
+  const isPasswordProtected = async (transferId: string) => {
+    try {
+      // Import config for wagmi actions
+      const { config } = await import('@/providers/XellarProvider');
+      const { readContract } = await import('wagmi/actions');
+
+      // First, check if the transfer exists
+      try {
+        const transferData = await readContract(config, {
+          abi: ProtectedTransferABI.abi,
+          address: PROTECTED_TRANSFER_ADDRESS,
+          functionName: 'getTransfer',
+          args: [transferId as `0x${string}`],
+        });
+
+        if (!transferData) {
+          console.error('Transfer not found');
+          return false;
+        }
+      } catch (error) {
+        console.error('Error getting transfer:', error);
+        return false;
+      }
+
+      // Then check if it's password protected
+      try {
+        // Check if the transfer has a password hash
+        const hasPasswordHash = await readContract(config, {
+          abi: ProtectedTransferABI.abi,
+          address: PROTECTED_TRANSFER_ADDRESS,
+          functionName: 'hasPasswordHash',
+          args: [transferId as `0x${string}`],
+        });
+
+        console.log('Transfer has password hash:', hasPasswordHash);
+        return hasPasswordHash as boolean;
+      } catch (error) {
+        // If the contract doesn't have the hasPasswordHash function, try another approach
+        console.error('Error checking password hash:', error);
+
+        // Try to claim without a password - if it fails with a specific error, it needs a password
+        try {
+          await readContract(config, {
+            abi: ProtectedTransferABI.abi,
+            address: PROTECTED_TRANSFER_ADDRESS,
+            functionName: 'validatePassword',
+            args: [transferId as `0x${string}`, ''],
+          });
+
+          // If we get here, the empty password was accepted (shouldn't happen)
+          return false;
+        } catch (validationError) {
+          // Check if the error message indicates a password is required
+          const errorMessage = validationError instanceof Error ? validationError.message : String(validationError);
+          const requiresPassword = errorMessage.includes('password') ||
+                                  errorMessage.includes('Password') ||
+                                  errorMessage.includes('claim code') ||
+                                  errorMessage.includes('Claim code');
+
+          console.log('Password validation error:', errorMessage);
+          console.log('Requires password:', requiresPassword);
+
+          return requiresPassword;
+        }
+      }
+    } catch (error) {
+      console.error('Error checking if transfer is password protected:', error);
+      return false; // Default to false if there's an error
+    }
+  };
+
+  // Get transfer details (non-hook version for use in functions)
+  const getTransferDetails = async (transferId: string) => {
+    try {
+      // Import config for wagmi actions
+      const { config } = await import('@/providers/XellarProvider');
+      const { readContract } = await import('wagmi/actions');
+
+      // Read the transfer details
+      const data = await readContract(config, {
+        abi: ProtectedTransferABI.abi,
+        address: PROTECTED_TRANSFER_ADDRESS,
+        functionName: 'getTransfer',
+        args: [transferId as `0x${string}`],
+      });
+
+      if (!data) return null;
+
+      // The contract returns an array of values
+      const [sender, recipient, tokenAddress, amount, expiry, status, createdAt, isLinkTransfer] = data as [
+        string, string, string, bigint, bigint, number, bigint, boolean
+      ];
+
+      // Determine token symbol based on token address
+      let tokenSymbol = 'Unknown';
+      if (tokenAddress.toLowerCase() === USDC_ADDRESS.toLowerCase()) {
+        tokenSymbol = 'USDC';
+      } else if (tokenAddress.toLowerCase() === IDRX_ADDRESS.toLowerCase()) {
+        tokenSymbol = 'IDRX';
+      }
+
+      // Format amount based on token
+      const decimals = tokenSymbol === 'USDC' ? USDC_DECIMALS : IDRX_DECIMALS;
+      const formattedAmount = formatUnits(amount, decimals);
+
+      return {
+        sender,
+        recipient,
+        tokenAddress,
+        tokenSymbol,
+        amount: formattedAmount,
+        expiry: Number(expiry),
+        status,
+        createdAt: Number(createdAt),
+        isLinkTransfer,
+        id: transferId
+      };
+    } catch (error) {
+      console.error('Error getting transfer details:', error);
+      return null;
+    }
   };
 
   return {
@@ -594,6 +827,8 @@ export function useProtectedTransfer() {
     getTokenAddress,
     getTokenDecimals,
     checkAllowance,
+    isPasswordProtected,
+    getTransferDetails,
     USDC_ADDRESS,
     IDRX_ADDRESS,
   };
