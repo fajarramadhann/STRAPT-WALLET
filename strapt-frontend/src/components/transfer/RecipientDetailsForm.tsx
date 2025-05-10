@@ -38,11 +38,11 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="recipient" className="text-sm font-medium">
-            Recipient Username
+            Recipient
           </label>
           <Input
             id="recipient"
-            placeholder="@username.sei"
+            placeholder="@username or wallet address 0x..."
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
             required
@@ -92,7 +92,7 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
           </p>
         </div>
         
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <label htmlFor="note" className="text-sm font-medium">
             Note (Optional)
           </label>
@@ -102,7 +102,7 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-        </div>
+        </div> */}
 
         <div className="space-y-2">
           <label htmlFor="transfer-method" className="text-sm font-medium">

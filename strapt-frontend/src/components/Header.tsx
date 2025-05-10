@@ -1,31 +1,12 @@
-import { Bell, Moon, Sun } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLocation } from 'react-router-dom';
 import XellarWalletProfile from './XellarWalletProfile';
-import { useState, useEffect } from 'react';
+import { ThemeToggleSimple } from '@/components/ui/theme-toggle';
 
 const Header = () => {
   const location = useLocation();
   const path = location.pathname.split('/')[2] || 'home';
-  const [isDarkMode, setIsDarkMode] = useState(true);
-
-  useEffect(() => {
-    // Initialize dark mode based on document class
-    const isDark = document.documentElement.classList.contains('dark');
-    setIsDarkMode(isDark);
-  }, []);
-
-  const toggleTheme = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-
-    // Apply the theme
-    if (newMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
 
   const getTitle = () => {
     switch (path) {
@@ -41,17 +22,7 @@ const Header = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold gradient-text">{getTitle()}</h1>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={toggleTheme}
-          >
-            {isDarkMode ?
-              <Sun className="h-5 w-5" /> :
-              <Moon className="h-5 w-5" />
-            }
-          </Button>
+          <ThemeToggleSimple />
           <Button variant="ghost" size="icon" className="rounded-full">
             <Bell className="h-5 w-5" />
           </Button>

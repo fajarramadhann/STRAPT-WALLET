@@ -265,7 +265,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
 
         // Generate transfer link with real domain
         const baseUrl = window.location.origin;
-        const link = `${baseUrl}/claim?id=${result.transferId}&code=${result.claimCode}`;
+        const link = `${baseUrl}/app/claims?id=${result.transferId}&code=${result.claimCode}`;
         setTransferLink(link);
 
         toast.success("Transfer created successfully");
@@ -331,7 +331,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
 
         // Generate transfer link with real domain
         const baseUrl = window.location.origin;
-        const link = `${baseUrl}/claim?id=${result.transferId}`;
+        const link = `${baseUrl}/app/claims?id=${result.transferId}`;
         setTransferLink(link);
 
         toast.success("Link transfer created successfully");

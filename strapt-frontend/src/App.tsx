@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ThemeProvider } from "@/components/ui/theme-provider";
 
 import { XellarProvider } from './providers/XellarProvider';
 
@@ -24,31 +25,33 @@ const App = () => {
   const isMobile = useIsMobile();
 
   return (
-    <XellarProvider>
-      <TooltipProvider>
-        <Sonner position="top-right" />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="claim/:id?" element={<Navigate to="/app/claims" replace />} />
-            {/* Protected routes require wallet connection */}
-            <Route element={<WalletCheck />}>
-              <Route path="app" element={isMobile ? <Layout /> : <DesktopLayout />}>
-                <Route index element={<Home />} />
-                <Route path="transfer" element={<Transfer />} />
-                <Route path="streams" element={<Streams />} />
-                <Route path="pools" element={<Pools />} />
-                <Route path="profile" element={<Profile />} />
-                <Route path="claims" element={<Claims />} />
-                <Route path="savings" element={<Savings />} />
-                <Route path="coming-soon" element={<ComingSoon />} />
+    <ThemeProvider defaultTheme="dark" storageKey="strapt-theme">
+      <XellarProvider>
+        <TooltipProvider>
+          <Sonner position="top-right" />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="claim/:id?" element={<Navigate to="/app/claims" replace />} />
+              {/* Protected routes require wallet connection */}
+              <Route element={<WalletCheck />}>
+                <Route path="app" element={isMobile ? <Layout /> : <DesktopLayout />}>
+                  <Route index element={<Home />} />
+                  <Route path="transfer" element={<Transfer />} />
+                  <Route path="streams" element={<Streams />} />
+                  <Route path="pools" element={<Pools />} />
+                  <Route path="profile" element={<Profile />} />
+                  <Route path="claims" element={<Claims />} />
+                  <Route path="savings" element={<Savings />} />
+                  <Route path="coming-soon" element={<ComingSoon />} />
+                </Route>
               </Route>
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
       </XellarProvider>
+    </ThemeProvider>
   );
 };
 
