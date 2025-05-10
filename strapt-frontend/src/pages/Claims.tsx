@@ -31,7 +31,7 @@ const Claims = () => {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [passwordError, setPasswordError] = useState('');
-  
+
   // Mock data - in a real app this would come from API
   const pendingClaims: TransferDetails[] = [
     {
@@ -55,7 +55,7 @@ const Claims = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const claimId = params.get('id');
-    
+
     if (claimId) {
       const claim = pendingClaims.find(claim => claim.id === claimId);
       if (claim) {
@@ -80,7 +80,7 @@ const Claims = () => {
     const diffMs = date.getTime() - now.getTime();
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     return `${diffHrs}h ${diffMins}m`;
   };
 
@@ -91,12 +91,12 @@ const Claims = () => {
     });
     navigate('/app');
   };
-  
+
   const handleShowQR = (transfer: TransferDetails) => {
     setActiveTransfer(transfer);
     setShowQR(true);
   };
-  
+
   const handleCopyLink = (transferId: string) => {
     navigator.clipboard.writeText(`https://truststream.app/claim/${transferId}`);
     toast({
@@ -104,15 +104,20 @@ const Claims = () => {
       description: "Transfer link copied to clipboard",
     });
   };
-  
+
+  // Helper function to shorten transfer IDs for display
+  const shortenTransferId = (id: string) => {
+    return id.length > 16 ? `${id.slice(0, 8)}...${id.slice(-8)}` : id;
+  };
+
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!activeTransfer) return;
-    
+
     setIsValidating(true);
     setPasswordError('');
-    
+
     // Simulate password validation
     setTimeout(() => {
       // For demo, we'll use a simple password "truststream"
@@ -127,17 +132,17 @@ const Claims = () => {
       }
     }, 1500);
   };
-  
+
   const handleScanSuccess = (decodedText: string) => {
     try {
       const url = new URL(decodedText);
-      
+
       if (url.pathname.includes('/claim/')) {
         const claimId = url.pathname.split('/claim/')[1];
-        
+
         if (claimId) {
           const claim = pendingClaims.find(claim => claim.id === claimId);
-          
+
           if (claim) {
             if (claim.passwordProtected) {
               setActiveTransfer(claim);
@@ -162,21 +167,21 @@ const Claims = () => {
       });
     }
   };
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => navigate(-1)} 
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(-1)}
           className="mr-4 p-0 h-auto"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-xl font-semibold">Pending Claims</h1>
         <div className="ml-auto">
-          <QRCodeScanner 
+          <QRCodeScanner
             buttonVariant="outline"
             buttonSize="sm"
             buttonText="Scan"
@@ -184,7 +189,7 @@ const Claims = () => {
           />
         </div>
       </div>
-      
+
       {pendingClaims.length > 0 ? (
         <div className="space-y-4">
           {pendingClaims.map((claim) => (
@@ -232,7 +237,7 @@ const Claims = () => {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col space-y-2">
-                <Button 
+                <Button
                   onClick={() => {
                     if (claim.passwordProtected) {
                       setActiveTransfer(claim);
@@ -252,15 +257,15 @@ const Claims = () => {
                   )}
                 </Button>
                 <div className="flex w-full gap-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
                     onClick={() => handleCopyLink(claim.id)}
                   >
                     <Copy className="h-4 w-4 mr-1" /> Copy Link
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
                     onClick={() => handleShowQR(claim)}
                   >
@@ -283,7 +288,7 @@ const Claims = () => {
           </Button>
         </div>
       )}
-      
+
       {/* QR code dialog */}
       <Dialog open={showQR} onOpenChange={setShowQR}>
         <DialogContent>
@@ -302,7 +307,7 @@ const Claims = () => {
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {/* Password verification dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
         <DialogContent>
@@ -318,7 +323,7 @@ const Claims = () => {
                   </p>
                 </div>
               )}
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -334,7 +339,7 @@ const Claims = () => {
                   <p className="text-sm text-red-500">{passwordError}</p>
                 )}
               </div>
-              
+
               <Button type="submit" className="w-full" disabled={isValidating}>
                 {isValidating ? (
                   <>

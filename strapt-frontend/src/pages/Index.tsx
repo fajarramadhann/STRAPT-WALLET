@@ -3,41 +3,36 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ArrowRight, Shield, BarChart2, Users, MessageCircle, CheckCircle, Zap, Smartphone, Droplets, Wallet } from 'lucide-react';
-import PrivyLoginModal from '@/components/PrivyLoginModal';
-import { usePrivyWallet } from '@/hooks/use-privy-wallet';
+import { useAccount } from 'wagmi';
+import { ConnectButton } from '@xellar/kit';
 
 const Index = () => {
   const isMobile = useIsMobile();
-  const { isConnected, connectWallet } = usePrivyWallet();
+  const { isConnected } = useAccount();
   const navigate = useNavigate();
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Redirect to app if already connected
   useEffect(() => {
-    if (isConnected && showLoginModal) {
+    if (isConnected) {
       navigate('/app');
-      setShowLoginModal(false);
     }
-  }, [isConnected, navigate, showLoginModal]);
+  }, [isConnected, navigate]);
 
-  const handleLaunchApp = async () => {
+  const handleLaunchApp = () => {
     if (isConnected) {
       navigate('/app');
     } else {
-      // Open the Privy login modal directly
-      await connectWallet();
-      // Don't automatically navigate - let the useEffect handle it after successful connection
+      setIsLoading(true);
+      // The ConnectButton will handle the wallet connection
+      // The useEffect will handle navigation after successful connection
+      setTimeout(() => setIsLoading(false), 500);
     }
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Privy Login Modal */}
-      <PrivyLoginModal 
-        open={showLoginModal} 
-        onClose={() => setShowLoginModal(false)} 
-      />
-      
+
       <header className="border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -45,13 +40,13 @@ const Index = () => {
             <div className="hidden md:flex items-center space-x-6">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
               <a href="#why" className="text-muted-foreground hover:text-foreground transition-colors">Why TrustStream</a>
-              <Button onClick={handleLaunchApp}>Launch App</Button>
+              <ConnectButton label="Launch App" />
             </div>
-            <Button onClick={handleLaunchApp} className="md:hidden">Launch</Button>
+            <ConnectButton label="Launch App" className="md:hidden" />
           </div>
         </div>
       </header>
-      
+
       {/* Hero Section */}
       <section className="pt-10 pb-20 px-4">
         <div className="max-w-7xl mx-auto">
@@ -61,15 +56,13 @@ const Index = () => {
                 Send, Stream, and Save — Securely on Web3
               </h1>
               <p className="text-lg text-muted-foreground mb-8 max-w-2xl">
-                Trustless crypto transfers and smart payments. Powered by Sei.
+                Trustless crypto transfers and smart payments.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start mb-8">
-                <Button 
+                <ConnectButton
+                  label={<>Launch App <ArrowRight className="ml-2 h-4 w-4" /></>}
                   className="w-full sm:w-auto text-base font-medium"
-                  onClick={handleLaunchApp}
-                >
-                  Launch App <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                />
                 <Button variant="outline" className="w-full sm:w-auto text-base font-medium">
                   Learn How It Works
                 </Button>
@@ -199,9 +192,11 @@ const Index = () => {
             <p className="text-lg mb-6 max-w-2xl mx-auto">
               Join thousands of users who are already experiencing the future of crypto payments.
             </p>
-            <Button size="lg" className="text-base" onClick={handleLaunchApp}>
-              Launch TrustStream <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <ConnectButton
+              label={<>Launch TrustStream <ArrowRight className="ml-2 h-5 w-5" /></>}
+              size="lg"
+              className="text-base"
+            />
           </div>
         </div>
 

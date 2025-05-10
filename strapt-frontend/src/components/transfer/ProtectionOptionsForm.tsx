@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { ArrowRight } from 'lucide-react';
 import { useTransferContext } from '@/contexts/TransferContext';
 import DurationSelect from '@/components/DurationSelect';
-import { DurationUnit } from '@/components/DurationSelect';
+import type { DurationUnit } from '@/components/DurationSelect';
 
 interface ProtectionOptionsFormProps {
   onNext: () => void;
@@ -37,7 +37,7 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
     <Card>
       <CardHeader>
         <CardTitle className="text-lg flex items-center">
-          <Shield className="h-5 w-5 mr-2 text-primary" /> 
+          <Shield className="h-5 w-5 mr-2 text-primary" />
           Protection Options
         </CardTitle>
       </CardHeader>
@@ -60,7 +60,7 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
             onCheckedChange={setWithTimeout}
           />
         </div>
-        
+
         {withTimeout && (
           <div className="space-y-2 pl-6">
             <DurationSelect
@@ -71,7 +71,7 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
               label="Time until auto-refund"
             />
             <p className="text-xs text-muted-foreground">
-              After this time expires, funds will be automatically returned to your wallet
+              After this time expires, funds can be refunded back to your wallet with a single click
             </p>
           </div>
         )}
@@ -86,8 +86,8 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
               </label>
             </div>
             <p className="text-xs text-muted-foreground">
-              {transferType === 'direct' 
-                ? 'Recipient must enter a password to receive funds' 
+              {transferType === 'direct'
+                ? 'Recipient must enter a password to receive funds'
                 : 'Recipient must enter a password to claim funds'}
             </p>
           </div>
@@ -97,7 +97,7 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
             onCheckedChange={setWithPassword}
           />
         </div>
-        
+
         {withPassword && (
           <div className="space-y-2 pl-6">
             <label htmlFor="password-input" className="text-sm font-medium">

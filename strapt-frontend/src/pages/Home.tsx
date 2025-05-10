@@ -22,96 +22,58 @@ import { useState, useEffect } from "react";
 import UsernameRegistration from "@/components/UsernameRegistration";
 import ReceivedStats from "@/components/ReceivedStats";
 import QRCode from "@/components/QRCode";
-import { usePrivyWallet } from "@/hooks/use-privy-wallet";
-import { useBalance, useChainId, useConfig } from "wagmi";
+import { useXellarWallet } from "@/hooks/use-xellar-wallet";
+import { useTokenBalances } from "@/hooks/use-token-balances";
+import { useChainId, useConfig } from "wagmi";
 import { formatUnits } from "viem";
-import { seiTestnet } from "@/lib/chains";
-import { sepolia, baseSepolia } from "viem/chains";
+import { liskSepolia, baseSepolia } from "viem/chains";
 import { Loading } from "@/components/ui/loading";
+import { toast } from "sonner";
 
 const Home = () => {
-  const { isConnected, address } = usePrivyWallet();
-  const [prices, setPrices] = useState<{ [key: string]: number }>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const { isConnected, address } = useXellarWallet();
+  const [prices, setPrices] = useState<{ [key: string]: number }>({
+    'usdc': 1.0, // USDC is pegged to USD
+    'idrx': 0.000065 // Example price for IDRX (adjust as needed)
+  });
 
   // Use updated wagmi hooks for current network
   const chainId = useChainId();
   const config = useConfig();
-  
-  // Get balance for current network
-  const { data: balance } = useBalance({
-    address: address as `0x${string}`,
-    chainId: chainId,
-  });
+
+  // Get token balances
+  const { tokens, isLoading, usdcBalance, idrxBalance } = useTokenBalances();
 
   // Get the current chain information
   const currentChain = config.chains.find(c => c.id === chainId);
 
-  // Fetch token prices based on current network
+  // Fetch token prices - simplified for demo
   useEffect(() => {
-    const fetchPrice = async () => {
-      if (!chainId || !isConnected) return;
-
-      let coinId;
-      switch (chainId) {
-        case sepolia.id:
-          coinId = 'ethereum';
-          break;
-        case baseSepolia.id:
-          coinId = 'base';
-          break;
-        case seiTestnet.id:
-          coinId = 'sei-network';
-          break;
-        default:
-          return;
-      }
-
-      try {
-        const response = await fetch(
-          `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
-        );
-        const data = await response.json();
-        setPrices({
-          [currentChain?.name.toLowerCase() || '']: data[coinId].usd
-        });
-      } catch (error) {
-        console.error('Failed to fetch price:', error);
-        setPrices({});
-      }
-    };
-
-    fetchPrice();
-    const interval = setInterval(fetchPrice, 60000);
-    return () => clearInterval(interval);
-  }, [chainId, isConnected, currentChain]);
+    // For a real app, you would fetch prices from an API
+    // For this demo, we'll use hardcoded prices
+    setPrices({
+      'usdc': 1.0, // USDC is pegged to USD
+      'idrx': 0.000065 // Example price for IDRX
+    });
+  }, []);
 
   // Calculate USD value
   const getUSDValue = (balance: number, symbol: string): number => {
-    const networkName = currentChain?.name.toLowerCase() || '';
-    const price = prices[networkName] || 0;
+    const tokenSymbol = symbol.toLowerCase();
+    const price = prices[tokenSymbol] || 0;
     return balance * price;
   };
 
-// Format balance with proper decimals
-const formatBalance = (
-  balance: bigint | undefined,
-  decimals: number,
-  precision: 1
-): string => {
-  if (!balance) return "0";
-
-  const raw = Number(formatUnits(balance, decimals));
-  
-  // Special handling for SEI network
-  if (chainId === seiTestnet.id) {
-    // SEI appears to use 12 decimals, not 6
-    return parseFloat(formatUnits(balance, 18)).toString();
-  }
-  
-  // For other networks (ETH, etc)
-  return raw.toFixed(precision);
-};
+  // Format balance with proper decimals
+  const formatBalance = (
+    balance: bigint | undefined,
+    decimals: number,
+    precision = 2
+  ): string => {
+    if (!balance) return "0";
+    const raw = Number(formatUnits(balance, decimals));
+    return raw.toFixed(precision);
+  };
 
   const navigate = useNavigate();
   const [showQR, setShowQR] = useState(false);
@@ -178,38 +140,51 @@ const formatBalance = (
               </div>
             ) : isLoading ? (
               <Loading size="sm" text="Fetching balance..." />
-            ) : balance ? (
-              <>
-                <div className="text-3xl font-bold mb-1">
-                  {formatBalance(balance.value, balance.decimals, 1)}{" "}
-                  {balance.symbol}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  ≈ $
-                  {getUSDValue(
-                    parseFloat(formatBalance(balance.value, balance.decimals, 1)),
-                    balance.symbol
-                  ).toFixed(2)}{" "}
-                  USD
-                </div>
-              </>
+            ) : tokens.length > 0 ? (
+              <div className="space-y-4">
+                {/* USDC Balance */}
+                {usdcBalance && (
+                  <div className="border-b pb-3">
+                    <div className="text-2xl font-bold mb-1">
+                      {usdcBalance.formatted} {usdcBalance.symbol}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      ≈ ${Number(usdcBalance.formatted).toFixed(2)} USD
+                    </div>
+                  </div>
+                )}
+
+                {/* IDRX Balance */}
+                {idrxBalance && (
+                  <div>
+                    <div className="text-2xl font-bold mb-1">
+                      {idrxBalance.formatted} {idrxBalance.symbol}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      ≈ ${(Number(idrxBalance.formatted) * prices.idrx).toFixed(2)} USD
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <Loading size="sm" text="Connecting..." />
             )}
           </div>
           <div className="flex justify-center gap-4 mt-4">
-            <button
-              className="flex items-center gap-2 bg-secondary rounded-xl px-4 py-2 text-sm font-medium"
+            <Button
+              variant="secondary"
+              className="flex items-center gap-2 rounded-xl"
               onClick={() => navigate("/app/claims")}
             >
               <ArrowDown className="h-4 w-4" /> Claims
-            </button>
-            <button
-              className="flex items-center gap-2 bg-secondary rounded-xl px-4 py-2 text-sm font-medium"
+            </Button>
+            <Button
+              variant="secondary"
+              className="flex items-center gap-2 rounded-xl"
               onClick={() => navigate("/app/transfer")}
             >
               <ArrowUp className="h-4 w-4" /> Send
-            </button>
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -295,15 +270,21 @@ const formatBalance = (
             <DialogTitle>Your Wallet QR Code</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center space-y-4">
-            <QRCode value="sei14zd...8xct" size={200} />
-            <p className="text-sm font-medium">@trustuser.sei</p>
-            <p className="text-xs text-muted-foreground">sei14zd...8xct</p>
+            <QRCode value={address || ''} size={200} />
+            <p className="text-sm font-medium">Your Wallet Address</p>
+            <p className="text-xs text-muted-foreground">
+              {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
+            </p>
             <Button
               variant="outline"
               className="w-full"
               onClick={() => {
-                navigator.clipboard.writeText("sei14zd...8xct");
+                if (address) {
+                  navigator.clipboard.writeText(address);
+                  toast.success("Address copied to clipboard");
+                }
               }}
+              disabled={!address}
             >
               Copy Address
             </Button>

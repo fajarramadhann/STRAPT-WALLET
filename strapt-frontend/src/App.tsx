@@ -1,9 +1,10 @@
-import React from 'react';
+
 import { Toaster as Sonner } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { PrivyProvider } from "@/providers/PrivyProvider";
+
+import { XellarProvider } from './providers/XellarProvider';
 
 import Index from "./pages/Index";
 import Home from "./pages/Home";
@@ -23,7 +24,7 @@ const App = () => {
   const isMobile = useIsMobile();
 
   return (
-    <PrivyProvider>
+    <XellarProvider>
       <TooltipProvider>
         <Sonner position="top-right" />
         <BrowserRouter>
@@ -46,7 +47,7 @@ const App = () => {
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </PrivyProvider>
+      </XellarProvider>
   );
 };
 

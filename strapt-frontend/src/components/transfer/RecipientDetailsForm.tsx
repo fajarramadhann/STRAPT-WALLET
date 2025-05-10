@@ -7,7 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import TokenSelect from '@/components/TokenSelect';
 import { ArrowRight } from 'lucide-react';
-import { useTransferContext, tokens } from '@/contexts/TransferContext';
+import { useTransferContext } from '@/contexts/TransferContext';
 
 interface RecipientDetailsFormProps {
   onNext: () => void;
@@ -54,7 +54,7 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
             Token
           </label>
           <TokenSelect
-            tokens={tokens}
+            tokens={useTransferContext().tokens}
             selectedToken={selectedToken}
             onTokenChange={setSelectedToken}
           />
@@ -105,10 +105,11 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">
+          <label htmlFor="transfer-method" className="text-sm font-medium">
             Transfer Method
           </label>
           <RadioGroup 
+            id="transfer-method"
             value={transferType} 
             onValueChange={(value) => setTransferType(value as 'direct' | 'claim')}
             className="grid grid-cols-1 gap-4 pt-2"

@@ -1,31 +1,25 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { usePrivyWallet } from '@/hooks/use-privy-wallet';
+import { useXellarWallet } from '@/hooks/use-xellar-wallet';
 import LoadingScreen from './LoadingScreen';
 
 const WalletCheck = () => {
-  const { isConnected, login, ready } = usePrivyWallet();
+  const { isConnected } = useXellarWallet();
   const location = useLocation();
-  const [loginAttempted, setLoginAttempted] = useState(false);
-  
-  // Try to login once if not connected
-  useEffect(() => {
-    if (!isConnected && ready && !loginAttempted) {
-      setLoginAttempted(true);
-      // Use timeout to avoid triggering login during component mount
-      const timer = setTimeout(() => {
-        try {
-          login();
-        } catch (error) {
-          console.error("Login error:", error);
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isConnected, login, ready, loginAttempted]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // If not ready, show loading screen
-  if (!ready) {
+  // Just check connection status without trying to connect
+  useEffect(() => {
+    // Short timeout to ensure wallet state is properly loaded
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // If loading, show loading screen
+  if (isLoading) {
     return <LoadingScreen />;
   }
 

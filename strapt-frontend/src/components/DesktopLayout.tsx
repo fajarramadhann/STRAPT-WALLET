@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Home, 
-  ArrowUp, 
-  BarChart2, 
-  Users, 
-  Bell, 
-  Shield, 
-  Wallet, 
-  Menu, 
-  Droplets, 
+import {
+  Home,
+  ArrowUp,
+  BarChart2,
+  Users,
+  Bell,
+  Shield,
+  Wallet,
+  Menu,
+  Droplets,
   X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,8 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import FaucetClaim from './FaucetClaim';
 import { cn } from '@/lib/utils';
-import RainbowKitProfile from './RainbowKitProfile';
-import PrivyWalletProfile from './PrivyWalletProfile';
+import XellarWalletProfile from './XellarWalletProfile';
 
 const DesktopLayout = () => {
   const location = useLocation();
@@ -56,16 +55,16 @@ const DesktopLayout = () => {
           {!sidebarCollapsed && (
             <h1 className="text-lg font-bold gradient-text">TrustStream</h1>
           )}
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className={cn(sidebarCollapsed && "mx-auto")}
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           >
             {sidebarCollapsed ? <Menu size={20} /> : <X size={20} />}
           </Button>
         </div>
-        
+
         <div className="flex flex-col flex-1">
           <ScrollArea className="flex-1">
             <nav className="p-2">
@@ -78,8 +77,8 @@ const DesktopLayout = () => {
                         to={`/app/${item.path}`}
                         className={cn(
                           "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                          isActive 
-                            ? "bg-primary/10 text-primary" 
+                          isActive
+                            ? "bg-primary/10 text-primary"
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                         )}
                       >
@@ -92,11 +91,11 @@ const DesktopLayout = () => {
               </ul>
             </nav>
           </ScrollArea>
-          
+
           <div className="p-4 border-t border-border mt-auto">
             <div className="flex items-center">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="mr-2 px-2"
                 onClick={() => setShowFaucet(true)}
@@ -104,7 +103,7 @@ const DesktopLayout = () => {
                 <Droplets className="h-4 w-4" />
                 {!sidebarCollapsed && <span className="ml-2">Faucet</span>}
               </Button>
-              
+
               {!sidebarCollapsed ? (
                 <Link to="/app/profile" className="flex-1 flex items-center rounded-md p-2 text-sm font-medium transition-colors hover:bg-secondary">
                   <span>Profile</span>
@@ -128,16 +127,16 @@ const DesktopLayout = () => {
               <Button variant="ghost" size="icon" className="mr-2">
                 <Bell className="h-5 w-5" />
               </Button>
-              <PrivyWalletProfile />
+              <XellarWalletProfile />
             </div>
           </div>
         </header>
-        
+
         <main className="p-6 flex-1 overflow-auto max-w-6xl mx-auto w-full">
           <Outlet />
         </main>
       </div>
-      
+
       <Dialog open={showFaucet} onOpenChange={setShowFaucet}>
         <DialogContent>
           <FaucetClaim onClose={() => setShowFaucet(false)} />

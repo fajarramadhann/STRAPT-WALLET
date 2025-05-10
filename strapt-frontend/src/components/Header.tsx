@@ -1,7 +1,7 @@
 import { Bell, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLocation } from 'react-router-dom';
-import PrivyWalletProfile from './PrivyWalletProfile';
+import XellarWalletProfile from './XellarWalletProfile';
 import { useState, useEffect } from 'react';
 
 const Header = () => {
@@ -18,7 +18,7 @@ const Header = () => {
   const toggleTheme = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    
+
     // Apply the theme
     if (newMode) {
       document.documentElement.classList.add('dark');
@@ -41,13 +41,13 @@ const Header = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold gradient-text">{getTitle()}</h1>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="rounded-full"
             onClick={toggleTheme}
           >
-            {isDarkMode ? 
+            {isDarkMode ?
               <Sun className="h-5 w-5" /> :
               <Moon className="h-5 w-5" />
             }
@@ -55,7 +55,7 @@ const Header = () => {
           <Button variant="ghost" size="icon" className="rounded-full">
             <Bell className="h-5 w-5" />
           </Button>
-          <PrivyWalletProfile />
+          <XellarWalletProfile />
         </div>
       </div>
     </header>

@@ -15,7 +15,7 @@ const TransferContent = () => {
   const [step, setStep] = useState(1);
   const [showQR, setShowQR] = useState(false);
   const { toast } = useToast();
-  const { setTransferLink, transferType } = useTransferContext();
+  const { transferType, isLoading } = useTransferContext();
 
   const nextStep = () => {
     setStep(step + 1);
@@ -40,21 +40,23 @@ const TransferContent = () => {
   };
 
   const handleConfirm = () => {
-    // Simulates the transfer submission
-    const mockTransferId = `tx${Math.floor(Math.random() * 1000000)}`;
-    const mockTransferLink = `https://truststream.app/claim/${mockTransferId}`;
-    
-    // Set the transfer link in context
-    setTransferLink(mockTransferLink);
-    
-    // Show success notification for direct transfers
+    // The actual transfer is now handled in ConfirmTransferForm
+    // using createProtectedTransfer or createProtectedLinkTransfer
+
+    // Show appropriate success notification based on transfer type
     if (transferType === 'direct') {
       toast({
         title: "Transfer Successful",
         description: "Your direct transfer has been sent",
       });
+    } else if (transferType === 'claim') {
+      toast({
+        title: "Transfer Created",
+        description: "Your transfer link/QR code is ready to share",
+      });
     }
-    
+
+    // Move to success screen
     nextStep();
   };
 
@@ -92,16 +94,16 @@ const TransferContent = () => {
         )}
 
         {step === 4 && (
-          <TransferSuccessView 
-            onReset={resetTransfer} 
-            onShowQR={handleShowQR} 
+          <TransferSuccessView
+            onReset={resetTransfer}
+            onShowQR={handleShowQR}
           />
         )}
       </form>
-      
-      <TransferQRCode 
-        showQR={showQR} 
-        onOpenChange={setShowQR} 
+
+      <TransferQRCode
+        showQR={showQR}
+        onOpenChange={setShowQR}
       />
     </div>
   );
