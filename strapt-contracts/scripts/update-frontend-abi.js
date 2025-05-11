@@ -3,73 +3,127 @@ const fs = require('fs');
 const path = require('path');
 
 async function main() {
-  console.log("Updating frontend ABI for ProtectedTransferV2...");
+  try {
+    // Check if the frontend directory exists
+    const frontendDir = path.join(__dirname, '../../strapt-frontend/src/contracts');
+    if (!fs.existsSync(frontendDir)) {
+      console.log("Creating frontend contracts directory...");
+      fs.mkdirSync(frontendDir, { recursive: true });
+    }
 
+    // Update ProtectedTransferV2 ABI
+    console.log("Updating frontend ABI for ProtectedTransferV2...");
+    await updateContractABI(
+      'transfers/ProtectedTransferV2.sol',
+      'ProtectedTransferV2',
+      frontendDir
+    );
+
+    // Update PaymentStream ABI
+    console.log("Updating frontend ABI for PaymentStream...");
+    await updateContractABI(
+      'streams/PaymentStream.sol',
+      'PaymentStream',
+      frontendDir
+    );
+
+    // Update contract config
+    await updateContractConfig(frontendDir);
+    console.log("Frontend update completed successfully.");
+
+    return true;
+  } catch (error) {
+    console.error("Error updating frontend:", error);
+    return false;
+  }
+}
+
+async function updateContractABI(contractPath, contractName, frontendDir) {
   // Check if the artifacts directory exists
-  const artifactsDir = path.join(__dirname, '../artifacts/contracts/transfers/ProtectedTransferV2.sol');
+  const artifactsDir = path.join(__dirname, `../artifacts/contracts/${contractPath}`);
   if (!fs.existsSync(artifactsDir)) {
-    console.error("Artifacts directory not found. Please compile the contracts first.");
-    process.exit(1);
+    console.error(`Artifacts directory not found for ${contractName}. Please compile the contracts first.`);
+    return false;
   }
 
   // Read the contract artifact
-  const artifactPath = path.join(artifactsDir, 'ProtectedTransferV2.json');
+  const artifactPath = path.join(artifactsDir, `${contractName}.json`);
   if (!fs.existsSync(artifactPath)) {
-    console.error("Contract artifact not found. Please compile the contracts first.");
-    process.exit(1);
+    console.error(`Contract artifact not found for ${contractName}. Please compile the contracts first.`);
+    return false;
   }
 
   const contractArtifact = require(artifactPath);
 
-  // Check if the frontend directory exists
-  const frontendDir = path.join(__dirname, '../../strapt-frontend/src/contracts');
-  if (!fs.existsSync(frontendDir)) {
-    console.log("Creating frontend contracts directory...");
-    fs.mkdirSync(frontendDir, { recursive: true });
-  }
-
   // Write the ABI to the frontend
-  const frontendPath = path.join(frontendDir, 'ProtectedTransferV2.json');
+  const frontendPath = path.join(frontendDir, `${contractName}.json`);
   fs.writeFileSync(
     frontendPath,
     JSON.stringify(contractArtifact, null, 2)
   );
 
-  console.log("ABI updated successfully at:", frontendPath);
-
-  // Get deployment info if available
-  const deploymentPath = path.join(__dirname, '../deployments');
-  if (fs.existsSync(deploymentPath)) {
-    const deploymentFiles = fs.readdirSync(deploymentPath).filter(file => file.startsWith('ProtectedTransferV2-'));
-    
-    if (deploymentFiles.length > 0) {
-      // Get the most recent deployment file
-      const latestDeployment = deploymentFiles.sort().pop();
-      const deploymentInfo = require(path.join(deploymentPath, latestDeployment));
-      
-      // Create a config file for the frontend
-      const configPath = path.join(frontendDir, 'contract-config.json');
-      const config = {
-        ProtectedTransferV2: {
-          address: deploymentInfo.contractAddress,
-          network: deploymentInfo.network,
-          supportedTokens: deploymentInfo.supportedTokens
-        }
-      };
-      
-      fs.writeFileSync(
-        configPath,
-        JSON.stringify(config, null, 2)
-      );
-      
-      console.log("Contract config updated at:", configPath);
-    }
-  }
+  console.log(`ABI updated successfully for ${contractName} at:`, frontendPath);
+  return true;
 }
+
+async function updateContractConfig(frontendDir) {
+    const deploymentPath = path.join(__dirname, '../deployments');
+    if (!fs.existsSync(deploymentPath)) {
+      console.log("No deployments directory found. Skipping contract config update.");
+      return;
+    }
+
+    // Get existing config or create new one
+    const configPath = path.join(frontendDir, 'contract-config.json');
+    let config = {};
+    if (fs.existsSync(configPath)) {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+
+    // Update ProtectedTransferV2 config
+    const ptv2Files = fs.readdirSync(deploymentPath).filter(file => file.startsWith('ProtectedTransferV2-'));
+    if (ptv2Files.length > 0) {
+      const latestPtv2 = ptv2Files.sort().pop();
+      const ptv2Info = require(path.join(deploymentPath, latestPtv2));
+
+      config.ProtectedTransferV2 = {
+        address: ptv2Info.contractAddress,
+        network: ptv2Info.network,
+        supportedTokens: ptv2Info.supportedTokens
+      };
+
+      console.log("Updated config with ProtectedTransferV2 deployment info.");
+    }
+
+    // Update PaymentStream config
+    const psFiles = fs.readdirSync(deploymentPath).filter(file => file.startsWith('PaymentStream-'));
+    if (psFiles.length > 0) {
+      const latestPs = psFiles.sort().pop();
+      const psInfo = require(path.join(deploymentPath, latestPs));
+
+      config.PaymentStream = {
+        address: psInfo.contractAddress,
+        network: psInfo.network,
+        supportedTokens: psInfo.supportedTokens
+      };
+
+      console.log("Updated config with PaymentStream deployment info.");
+    }
+
+    // Write updated config
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(config, null, 2)
+    );
+
+    console.log("Contract config updated at:", configPath);
+  }
 
 // Execute the script
 main()
-  .then(() => process.exit(0))
+  .then((success) => {
+    process.exit(success ? 0 : 1);
+  })
   .catch((error) => {
     console.error(error);
     process.exit(1);

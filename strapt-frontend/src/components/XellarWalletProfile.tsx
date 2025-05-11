@@ -20,17 +20,17 @@ const XellarWalletProfile = () => {
   const { isConnected, address, disconnectWallet, connectWallet } = useXellarWallet();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Use wagmi hooks
   const chainId = useChainId();
   const config = useConfig();
   const { switchChain } = useSwitchChain();
-  
+
   // Get balance using the account hook
   const { data: balance } = useBalance({
     address: address as `0x${string}`,
   });
-  
+
   // Get the current chain information
   const currentChain = config.chains.find(c => c.id === chainId);
 
@@ -51,8 +51,14 @@ const XellarWalletProfile = () => {
     );
   }
 
-  const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
-  
+  // Gunakan format yang lebih pendek untuk mobile
+  const isMobile = window.innerWidth < 768;
+  const truncatedAddress = address
+    ? isMobile
+      ? `${address.slice(0, 4)}...${address.slice(-2)}`
+      : `${address.slice(0, 6)}...${address.slice(-4)}`
+    : '';
+
   const handleCopy = () => {
     if (address) {
       navigator.clipboard.writeText(address);
@@ -97,7 +103,7 @@ const XellarWalletProfile = () => {
 
   const handleViewOnExplorer = () => {
     if (!address || !currentChain?.blockExplorers?.default?.url) return;
-    
+
     const explorerUrl = `${currentChain.blockExplorers.default.url}/address/${address}`;
     window.open(explorerUrl, '_blank');
   };
@@ -117,7 +123,7 @@ const XellarWalletProfile = () => {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{truncatedAddress}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {balance && `${parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}`}
+              {balance && `${Number.parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}`}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -150,8 +156,8 @@ const XellarWalletProfile = () => {
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem 
-          className="cursor-pointer text-destructive focus:text-destructive" 
+        <DropdownMenuItem
+          className="cursor-pointer text-destructive focus:text-destructive"
           onClick={handleDisconnect}
           disabled={isLoading}
         >

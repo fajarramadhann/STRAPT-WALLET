@@ -14,5 +14,13 @@
       "USDC": "0x72db95F0716cF79C0efe160F23fB17bF1c161317",
       "IDRX": "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661"
     }
+  },
+  "PaymentStream": {
+    "address": "0xDFa0a6101f25630d3122e1b6b34590848ba35402",
+    "network": "liskSepolia",
+    "supportedTokens": {
+      "USDC": "0x72db95F0716cF79C0efe160F23fB17bF1c161317",
+      "IDRX": "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661"
+    }
   }
 }
