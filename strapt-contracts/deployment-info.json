@@ -1,10 +1,10 @@
 {
   "network": "liskSepolia",
-  "protectedTransfer": "0xb954f29215Cf0239017f54515F83aBFC5d70dCb4",
+  "protectedTransfer": "0x225f179c0d57c3DF357f802BB40d5a4BeaFb4F0C",
   "owner": "0x5BAC06Ba1E1be967f8b9a6e962D1bC2a121F080a",
   "feeCollector": "0x5BAC06Ba1E1be967f8b9a6e962D1bC2a121F080a",
   "fee": 25,
-  "deploymentTime": "2025-05-09T17:35:55.431Z",
-  "usdc": "0x258F16A94BaEe9b8c2499d3974a2bfA872ce805D",
-  "usdcDeploymentTime": "2025-05-09T17:38:38.356Z"
+  "deploymentTime": "2025-05-11T00:57:25.026Z",
+  "usdc": "0x72db95F0716cF79C0efe160F23fB17bF1c161317",
+  "usdcDeploymentTime": "2025-05-11T01:01:36.320Z"
 }

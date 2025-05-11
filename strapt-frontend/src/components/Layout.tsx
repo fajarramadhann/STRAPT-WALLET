@@ -18,21 +18,21 @@ const Layout = () => {
   return (
     <div className="app-container">
       <Header />
-      <main className="p-4 pb-20 animate-fade-in">
+      <main className="p-4 pt-6 pb-20 animate-fade-in">
         <Outlet />
       </main>
       <BottomNav />
-      
+
       {/* Floating buttons */}
       <div className="fixed bottom-20 right-4 flex flex-col space-y-2">
-        <Button 
+        <Button
           className="rounded-full shadow-lg"
           size="icon"
           onClick={() => setShowScanner(true)}
         >
           <Scan className="h-5 w-5" />
         </Button>
-        <Button 
+        <Button
           className="rounded-full shadow-lg"
           size="icon"
           onClick={() => setShowFaucet(true)}
@@ -40,7 +40,7 @@ const Layout = () => {
           <Droplets className="h-5 w-5" />
         </Button>
       </div>
-      
+
       <Dialog open={showFaucet} onOpenChange={setShowFaucet}>
         <DialogContent className={isMobile ? "sm:max-w-[92%] w-[92%] mx-auto rounded-xl px-3 py-4" : ""}>
           <DialogHeader>
@@ -50,15 +50,15 @@ const Layout = () => {
           <FaucetClaim onClose={() => setShowFaucet(false)} />
         </DialogContent>
       </Dialog>
-      
+
       <Dialog open={showScanner} onOpenChange={setShowScanner}>
         <DialogContent className={isMobile ? "sm:max-w-[92%] w-[92%] mx-auto rounded-xl px-3 py-4" : ""}>
           <DialogHeader>
             <DialogTitle>Scan Code</DialogTitle>
             <DialogDescription>Scan a QR code to receive money or add a friend</DialogDescription>
           </DialogHeader>
-          <QRCodeScanner 
-            triggerType="button" 
+          <QRCodeScanner
+            triggerType="button"
             onScanSuccess={() => setShowScanner(false)}
           />
         </DialogContent>

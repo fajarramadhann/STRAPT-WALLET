@@ -11,7 +11,7 @@ const IDRX_ADDRESS = IDRXABI.address as `0x${string}`;
 
 // Token decimals
 const USDC_DECIMALS = 6;
-const IDRX_DECIMALS = 18;
+const IDRX_DECIMALS = 2;
 
 export function useTokenBalances() {
   const { address, isConnected } = useAccount();
@@ -54,15 +54,15 @@ export function useTokenBalances() {
 
     if (!isLoadingUsdc && !isLoadingIdrx) {
       const updatedTokens = [
-        { 
-          symbol: 'IDRX', 
-          name: 'IDRX Token', 
-          balance: idrxBalance ? parseFloat(idrxBalance.formatted) : 0 
+        {
+          symbol: 'IDRX',
+          name: 'IDRX Token',
+          balance: idrxBalance ? parseFloat(idrxBalance.formatted) : 0
         },
-        { 
-          symbol: 'USDC', 
-          name: 'USD Coin', 
-          balance: usdcBalance ? parseFloat(usdcBalance.formatted) : 0 
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          balance: usdcBalance ? parseFloat(usdcBalance.formatted) : 0
         },
       ];
       setTokens(updatedTokens);

@@ -1,8 +1,7 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { TokenOption } from '@/components/TokenSelect';
-import { DurationUnit } from '@/components/DurationSelect';
-import { useProtectedTransfer, TokenType } from '@/hooks/use-protected-transfer';
+import { useProtectedTransferV2, TokenType } from '@/hooks/use-protected-transfer-v2';
 import { useTokenBalances } from '@/hooks/use-token-balances';
 import { toast } from 'sonner';
 import { writeContract, waitForTransactionReceipt } from 'wagmi/actions';
@@ -23,10 +22,6 @@ interface TransferContextType {
   setWithTimeout: (value: boolean) => void;
   withPassword: boolean;
   setWithPassword: (value: boolean) => void;
-  timeout: number;
-  setTimeout: (value: number) => void;
-  timeoutUnit: DurationUnit;
-  setTimeoutUnit: (value: DurationUnit) => void;
   password: string;
   setPassword: (value: string) => void;
   selectedToken: TokenOption;
@@ -37,6 +32,8 @@ interface TransferContextType {
   setTransferLink: (value: string) => void;
   formatTimeout: () => string;
   shortenTransferId: (id: string | null) => string;
+  grossAmount: string;
+  setGrossAmount: (value: string) => void;
 
   // Token data
   tokens: TokenOption[];
@@ -44,6 +41,7 @@ interface TransferContextType {
 
   // Protected Transfer functions
   isLoading: boolean;
+  isDirectTransferLoading: boolean;
   isConfirmed: boolean;
   isApproving: boolean;
   isApproved: boolean;
@@ -56,7 +54,7 @@ interface TransferContextType {
 
   // Contract interaction functions
   createProtectedTransfer: () => Promise<boolean | undefined>;
-  createProtectedLinkTransfer: () => Promise<boolean>;
+  createProtectedLinkTransfer: () => Promise<boolean | undefined>;
   claimProtectedTransfer: (transferId: string, claimCode: string) => Promise<boolean>;
   claimProtectedLinkTransfer: (transferId: string) => Promise<boolean>;
   refundProtectedTransfer: (transferId: string) => Promise<boolean>;
@@ -78,11 +76,10 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   // Form state
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
+  const [grossAmount, setGrossAmount] = useState('');
   const [note, setNote] = useState('');
-  const [withTimeout, setWithTimeout] = useState(true); // Default to true for expiry
+  const [withTimeout, setWithTimeout] = useState(true); // Always true for 24-hour expiry
   const [withPassword, setWithPassword] = useState(true); // Default to true for claim code
-  const [timeout, setTimeout] = useState(24);
-  const [timeoutUnit, setTimeoutUnit] = useState<DurationUnit>('hours');
   const [password, setPassword] = useState('');
   const [transferType, setTransferType] = useState<TransferType>('claim');
   const [transferLink, setTransferLink] = useState('');
@@ -109,36 +106,25 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   const [transferId, setTransferId] = useState<string | null>(null);
   const [isApproving, setIsApproving] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
+  const [isDirectTransferLoading, setIsDirectTransferLoading] = useState(false);
 
-  // Use the Protected Transfer hook
+  // Use the Protected Transfer V2 hook
   const {
     isLoading,
     isConfirmed,
-    createTransfer,
+    createDirectTransfer,
     createLinkTransfer,
     claimTransfer,
-    claimLinkTransfer,
     refundTransfer,
     generateClaimCode,
     checkAllowance,
     USDC_ADDRESS,
     IDRX_ADDRESS,
-  } = useProtectedTransfer();
+  } = useProtectedTransferV2();
 
-  // Format timeout for display
+  // Format timeout for display - always returns 24 hours
   const formatTimeout = () => {
-    switch (timeoutUnit) {
-      case 'seconds':
-        return timeout === 1 ? "1 second" : `${timeout} seconds`;
-      case 'minutes':
-        return timeout === 1 ? "1 minute" : `${timeout} minutes`;
-      case 'hours':
-        return timeout === 1 ? "1 hour" : `${timeout} hours`;
-      case 'days':
-        return timeout === 1 ? "1 day" : `${timeout} days`;
-      default:
-        return `${timeout} ${timeoutUnit}`;
-    }
+    return "24 hours";
   };
 
   // Shorten transfer ID for display
@@ -147,20 +133,9 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
     return id.length > 16 ? `${id.slice(0, 8)}...${id.slice(-8)}` : id;
   };
 
-  // Convert timeoutUnit and timeout to seconds for contract
-  const getExpirySeconds = () => {
-    switch (timeoutUnit) {
-      case 'seconds': return timeout;
-      case 'minutes': return timeout * 60;
-      case 'hours': return timeout * 3600;
-      case 'days': return timeout * 86400;
-      default: return timeout * 3600; // Default to hours
-    }
-  };
-
-  // Get expiry timestamp (current time + timeout in seconds)
+  // Get expiry timestamp (current time + 24 hours)
   const getExpiryTimestamp = () => {
-    return Math.floor(Date.now() / 1000) + getExpirySeconds();
+    return Math.floor(Date.now() / 1000) + 86400; // Fixed 24 hours (86400 seconds)
   };
 
   // Get token type from selected token
@@ -185,6 +160,15 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
+      // For direct transfers without password protection, we don't need approval
+      // as we'll use a direct ERC20 transfer
+      if (transferType === 'direct' && !withPassword) {
+        // Skip approval for direct transfers without password
+        setIsApproved(true);
+        toast.success("Direct transfer doesn't require approval");
+        return true;
+      }
+
       // Get token ABI based on selected token
       const tokenABI = selectedToken.symbol === 'USDC'
         ? (await import('@/contracts/USDCMock.json')).default.abi
@@ -199,7 +183,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       const tokenAddress = getTokenAddress();
 
       // Get protected transfer contract address
-      const protectedTransferAddress = (await import('@/contracts/ProtectedTransfer.json')).default.address as `0x${string}`;
+      const protectedTransferAddress = (await import('@/contracts/contract-config.json')).default.ProtectedTransferV2.address as `0x${string}`;
 
       // Approve token transfer with account parameter
       const hash = await writeContract(config, {
@@ -234,27 +218,97 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Create a protected transfer
+  // Create a transfer (direct or protected)
   const createProtectedTransfer = async () => {
     try {
-      // Check if token is already approved
-      if (!isApproved) {
-        toast.error("Please approve token transfer first");
-        return;
+      // Check if wallet is connected
+      if (!address) {
+        toast.error("No wallet connected");
+        return false;
       }
 
-      // Calculate expiry timestamp
-      const expiryTimestamp = withTimeout ? getExpiryTimestamp() : Math.floor(Date.now() / 1000) + 86400; // Default to 24 hours
+      // For direct transfers without password protection, we don't need approval
+      // For all other transfers, check if token is already approved
+      if (!isApproved && !(transferType === 'direct' && !withPassword)) {
+        toast.error("Please approve token transfer first");
+        return false;
+      }
+
+      // For direct transfers without password protection, use standard ERC20 transfer
+      if (transferType === 'direct' && !withPassword) {
+        try {
+          // Set loading state for direct transfer
+          setIsDirectTransferLoading(true);
+
+          // Get token ABI based on selected token
+          const tokenABI = selectedToken.symbol === 'USDC'
+            ? (await import('@/contracts/USDCMock.json')).default.abi
+            : (await import('@/contracts/IDRX.json')).default.abi;
+
+          // Parse amount with correct decimals
+          const { parseUnits } = await import('viem');
+          const decimals = selectedToken.symbol === 'USDC' ? 6 : 2;
+          const parsedAmount = parseUnits(amount, decimals);
+
+          // Get token address
+          const tokenAddress = getTokenAddress();
+
+          // Execute direct ERC20 transfer
+          const hash = await writeContract(config, {
+            abi: tokenABI,
+            functionName: 'transfer',
+            args: [recipient as `0x${string}`, parsedAmount],
+            address: tokenAddress,
+            account: address,
+            chain: config.chains[0], // Use the first chain in the config
+          });
+
+          // Wait for transaction to be confirmed
+          const receipt = await waitForTransactionReceipt(config, {
+            hash
+          });
+
+          if (receipt.status === 'success') {
+            toast.success("Direct transfer successful");
+
+            // Reset approval state for next transfer
+            setIsApproved(false);
+
+            // Set the gross amount (original amount)
+            setGrossAmount(amount);
+
+            return true;
+          }
+
+          toast.error("Direct transfer failed");
+          return false;
+        } catch (error) {
+          console.error('Error executing direct transfer:', error);
+          toast.error(`Direct transfer failed: ${error instanceof Error ? error.message : String(error)}`);
+          return false;
+        } finally {
+          // Reset loading state
+          setIsDirectTransferLoading(false);
+        }
+      }
+
+      // For protected transfers (with password or link/QR transfers)
+      // Use fixed 24-hour expiry timestamp if withTimeout is true, otherwise no expiry
+      const expiryTimestamp = withTimeout ? getExpiryTimestamp() : 0; // 0 means no expiry
 
       // Use custom password if withPassword is true, otherwise generate a random one
       const customPassword = withPassword && password ? password : null;
 
-      // Create the transfer
-      const result = await createTransfer(
-        recipient,
+      // Create the protected transfer
+      // For Link/QR transfers, recipient can be empty
+      const recipientAddress = transferType === 'direct' ? recipient : (recipient || '0x0000000000000000000000000000000000000000');
+
+      const result = await createDirectTransfer(
+        recipientAddress,
         getTokenType(),
         amount,
         expiryTimestamp,
+        withPassword,
         customPassword
       );
 
@@ -263,19 +317,22 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         setClaimCode(result.claimCode || '');
         setTransferId(result.transferId);
 
+        // Set the gross amount (original amount before fee)
+        setGrossAmount(amount);
+
         // Generate transfer link with real domain
         const baseUrl = window.location.origin;
         const link = `${baseUrl}/app/claims?id=${result.transferId}&code=${result.claimCode}`;
         setTransferLink(link);
 
-        toast.success("Transfer created successfully");
+        toast.success("Protected transfer created successfully");
 
         // Reset approval state for next transfer
         setIsApproved(false);
 
         return true;
       }
-      toast.error("Failed to create transfer: No transfer ID returned");
+      toast.error("Failed to create protected transfer: No transfer ID returned");
       return false;
     } catch (error) {
       console.error('Error creating transfer:', error);
@@ -285,7 +342,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Create a protected link transfer
-  const createProtectedLinkTransfer = async (): Promise<boolean> => {
+  const createProtectedLinkTransfer = async (): Promise<boolean | undefined> => {
     try {
       // Get the current account
       const { getAccount } = await import('wagmi/actions');
@@ -296,6 +353,9 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         toast.error("No wallet connected");
         return false;
       }
+
+      // For Link/QR transfers, recipient is optional
+      // If no recipient is provided, anyone with the link can claim the funds
 
       // Check if token is already approved
       if (!isApproved) {
@@ -312,29 +372,66 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      // Calculate expiry timestamp
-      const expiryTimestamp = withTimeout ? getExpiryTimestamp() : Math.floor(Date.now() / 1000) + 86400; // Default to 24 hours
+      // Use fixed 24-hour expiry timestamp if withTimeout is true, otherwise no expiry
+      const expiryTimestamp = withTimeout ? getExpiryTimestamp() : 0; // 0 means no expiry
 
-      // Create the link transfer
-      const result = await createLinkTransfer(
-        getTokenType(),
-        amount,
-        expiryTimestamp
-      );
+      let result: { transferId: string; claimCode?: string } | undefined;
+
+      // If password protection is enabled, use createProtectedLinkTransfer
+      if (withPassword) {
+        console.log('Creating password-protected link transfer');
+
+        // Generate a custom password if password protection is enabled
+        const customPassword = password || generateClaimCode();
+        console.log('Using password:', customPassword);
+
+        // Use createLinkTransfer with password protection
+        result = await createLinkTransfer(
+          getTokenType(),
+          amount,
+          expiryTimestamp,
+          true, // withPassword = true
+          customPassword
+        );
+
+        // Save the claim code
+        setClaimCode(result.claimCode || '');
+
+        // Generate transfer link with real domain and claim code
+        if (result?.transferId) {
+          const baseUrl = window.location.origin;
+          const link = `${baseUrl}/app/claims?id=${result.transferId}&code=${result.claimCode}`;
+          setTransferLink(link);
+        }
+      } else {
+        // If no password protection, use createLinkTransfer
+        console.log('Creating link transfer without password protection');
+
+        result = await createLinkTransfer(
+          getTokenType(),
+          amount,
+          expiryTimestamp
+        );
+
+        // For link transfers without password, we don't need a claim code
+        setClaimCode('');
+
+        // Generate transfer link with real domain (no claim code)
+        if (result?.transferId) {
+          const baseUrl = window.location.origin;
+          const link = `${baseUrl}/app/claims?id=${result.transferId}`;
+          setTransferLink(link);
+        }
+      }
 
       if (result?.transferId) {
         // Save the transfer ID
         setTransferId(result.transferId);
 
-        // For link transfers, we don't need a claim code
-        setClaimCode('');
+        // Set the gross amount (original amount before fee)
+        setGrossAmount(amount);
 
-        // Generate transfer link with real domain
-        const baseUrl = window.location.origin;
-        const link = `${baseUrl}/app/claims?id=${result.transferId}`;
-        setTransferLink(link);
-
-        toast.success("Link transfer created successfully");
+        toast.success(withPassword ? "Password-protected link transfer created successfully" : "Link transfer created successfully");
 
         // Reset approval state for next transfer
         setIsApproved(false);
@@ -365,7 +462,8 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   // Claim a protected link transfer
   const claimProtectedLinkTransfer = async (id: string) => {
     try {
-      return await claimLinkTransfer(id);
+      // For transfers without password, we can use an empty string as the claim code
+      return await claimTransfer(id, '');
     } catch (error) {
       console.error('Error claiming link transfer:', error);
       toast.error("Failed to claim link transfer");
@@ -390,16 +488,14 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
     setRecipient,
     amount,
     setAmount,
+    grossAmount,
+    setGrossAmount,
     note,
     setNote,
     withTimeout,
     setWithTimeout,
     withPassword,
     setWithPassword,
-    timeout,
-    setTimeout,
-    timeoutUnit,
-    setTimeoutUnit,
     password,
     setPassword,
     selectedToken,
@@ -416,7 +512,8 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
     isLoadingTokens,
 
     // Protected Transfer state
-    isLoading: isLoading || isLoadingTokens,
+    isLoading: isLoading || isLoadingTokens || isDirectTransferLoading,
+    isDirectTransferLoading,
     isConfirmed,
     isApproving,
     isApproved,

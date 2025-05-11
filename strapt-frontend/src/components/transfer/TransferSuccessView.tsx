@@ -15,12 +15,11 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
   const {
     recipient,
     amount,
-    withTimeout,
+    grossAmount,
     withPassword,
     selectedToken,
     transferType,
     transferLink,
-    formatTimeout,
     claimCode,
     transferId,
     shortenTransferId,
@@ -60,9 +59,23 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
         <CardTitle>Transfer Created!</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p>Your {transferType === 'direct' ? 'direct transfer' : 'protected transfer'} of {amount} {selectedToken.symbol} to {recipient && recipient.length > 12
-          ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}`
-          : recipient} has been {transferType === 'direct' ? 'sent' : 'created'}.</p>
+        <p>Your {transferType === 'direct' ? 'direct transfer' : 'protected transfer'} of {amount} {selectedToken.symbol}
+          {recipient ? (
+            <>to {recipient.length > 12 ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}` : recipient}</>
+          ) : (
+            transferType === 'claim' ? ' via Link/QR' : ''
+          )} has been {transferType === 'direct' ? 'sent' : 'created'}.</p>
+
+        {/* Display fee information */}
+        <div className="text-sm text-muted-foreground bg-secondary/30 p-2 rounded-md">
+          <p>Note: A small fee has been deducted from the transfer amount.</p>
+          <p className="mt-1">
+            <span className="font-medium">Original amount:</span> {grossAmount} {selectedToken.symbol}
+          </p>
+          <p>
+            <span className="font-medium">Recipient will receive:</span> {amount} {selectedToken.symbol}
+          </p>
+        </div>
 
         {/* For both direct and claim transfers */}
         <div className="border border-border rounded-lg p-4">
@@ -127,13 +140,13 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
           </div>
         </div>
 
-        {withTimeout && transferType === 'claim' && (
+        {transferType === 'claim' && (
           <div className="bg-secondary/30 p-3 rounded-md text-sm">
             <div className="flex items-center text-amber-500 mb-1">
               <Clock className="h-4 w-4 mr-1" /> Refund Protection Enabled
             </div>
             <p>
-              If not claimed within {formatTimeout()}, you'll be able to refund the funds back to your wallet.
+              If not claimed within 24 hours, you'll be able to refund the funds back to your wallet.
             </p>
           </div>
         )}

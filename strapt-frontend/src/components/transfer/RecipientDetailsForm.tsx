@@ -31,24 +31,31 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
     <Card>
       <CardHeader>
         <CardTitle className="text-lg flex items-center">
-          <Shield className="h-5 w-5 mr-2 text-primary" /> 
+          <Shield className="h-5 w-5 mr-2 text-primary" />
           Recipient Details
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="recipient" className="text-sm font-medium">
-            Recipient
+            Recipient {transferType === 'direct' ? '(Required)' : '(Optional for Link/QR)'}
           </label>
           <Input
             id="recipient"
-            placeholder="@username or wallet address 0x..."
+            placeholder={transferType === 'direct'
+              ? "@username or wallet address 0x..."
+              : "Optional for Link/QR transfers"}
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
-            required
+            required={transferType === 'direct'}
           />
+          {transferType === 'claim' && (
+            <p className="text-xs text-muted-foreground">
+              For Link/QR transfers, recipient is optional as anyone with the link can claim the funds.
+            </p>
+          )}
         </div>
-        
+
         <div className="space-y-2">
           <label htmlFor="token" className="text-sm font-medium">
             Token
@@ -59,7 +66,7 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
             onTokenChange={setSelectedToken}
           />
         </div>
-        
+
         <div className="space-y-2">
           <label htmlFor="amount" className="text-sm font-medium">
             Amount
@@ -91,7 +98,7 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
             Available: {selectedToken.balance?.toFixed(2) || 0} {selectedToken.symbol}
           </p>
         </div>
-        
+
         {/* <div className="space-y-2">
           <label htmlFor="note" className="text-sm font-medium">
             Note (Optional)
@@ -108,9 +115,9 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
           <label htmlFor="transfer-method" className="text-sm font-medium">
             Transfer Method
           </label>
-          <RadioGroup 
+          <RadioGroup
             id="transfer-method"
-            value={transferType} 
+            value={transferType}
             onValueChange={(value) => setTransferType(value as 'direct' | 'claim')}
             className="grid grid-cols-1 gap-4 pt-2"
           >

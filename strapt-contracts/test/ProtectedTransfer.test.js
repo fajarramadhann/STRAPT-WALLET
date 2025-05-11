@@ -29,7 +29,7 @@ describe("ProtectedTransfer", function () {
     idrx = await IDRXFactory.deploy(ownerAddress);
 
     // Deploy USDC token
-    const USDCFactory = await ethers.getContractFactory("USDCMock");
+    const USDCFactory = await ethers.getContractFactory("contracts/mocks/USDCMock.sol:USDCMock");
     usdc = await USDCFactory.deploy(ownerAddress);
 
     // Deploy ProtectedTransfer contract
@@ -262,7 +262,7 @@ describe("ProtectedTransfer", function () {
 
   describe("Fee functionality", function () {
     it("Should collect fees when fee is set", async function () {
-      // Set fee to 1% (100 basis points)
+      // Set fee to 0.5% (50 basis points)
       await protectedTransfer.connect(owner).setFee(50);
 
       const expiry = await time.latest() + 3600; // 1 hour from now
@@ -279,8 +279,8 @@ describe("ProtectedTransfer", function () {
         claimCodeHash
       );
 
-      // Calculate expected fee (1% of transfer amount)
-      const expectedFee = (transferAmount * BigInt(100)) / BigInt(10000);
+      // Calculate expected fee (0.5% of transfer amount)
+      const expectedFee = (transferAmount * BigInt(50)) / BigInt(10000);
 
       // Check fee collector received the fee
       const finalFeeCollectorBalance = await idrx.balanceOf(ownerAddress);
@@ -345,11 +345,16 @@ describe("ProtectedTransfer", function () {
 
   describe("Transfer status check", function () {
     let transferId;
+    let linkTransferId;
+    let protectedLinkTransferId;
+    const protectedLinkClaimCode = "PROTECTED123";
+    const protectedLinkClaimCodeHash = ethers.keccak256(ethers.toUtf8Bytes(protectedLinkClaimCode));
 
     beforeEach(async function () {
       const expiry = await time.latest() + 3600; // 1 hour from now
 
-      const tx = await protectedTransfer.connect(sender).createTransfer(
+      // Create a regular transfer
+      let tx = await protectedTransfer.connect(sender).createTransfer(
         recipientAddress,
         await idrx.getAddress(),
         transferAmount,
@@ -357,12 +362,41 @@ describe("ProtectedTransfer", function () {
         claimCodeHash
       );
 
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find(
+      let receipt = await tx.wait();
+      let event = receipt?.logs.find(
         (log) => log.fragment?.name === "TransferCreated"
       );
 
       transferId = event?.args[0];
+
+      // Create a link transfer without password
+      tx = await protectedTransfer.connect(sender).createLinkTransfer(
+        await idrx.getAddress(),
+        transferAmount,
+        expiry
+      );
+
+      receipt = await tx.wait();
+      event = receipt?.logs.find(
+        (log) => log.fragment?.name === "TransferCreated"
+      );
+
+      linkTransferId = event?.args[0];
+
+      // Create a protected link transfer with password
+      tx = await protectedTransfer.connect(sender).createProtectedLinkTransfer(
+        await idrx.getAddress(),
+        transferAmount,
+        expiry,
+        protectedLinkClaimCodeHash
+      );
+
+      receipt = await tx.wait();
+      event = receipt?.logs.find(
+        (log) => log.fragment?.name === "TransferCreated"
+      );
+
+      protectedLinkTransferId = event?.args[0];
     });
 
     it("Should correctly report if a transfer is claimable", async function () {
@@ -385,6 +419,17 @@ describe("ProtectedTransfer", function () {
 
       // Should now be expired and not claimable
       expect(await protectedTransfer.isTransferClaimable(transferId)).to.equal(false);
+    });
+
+    it("Should correctly report if a transfer is password protected", async function () {
+      // Regular transfer should be password protected
+      expect(await protectedTransfer.isPasswordProtected(transferId)).to.equal(true);
+
+      // Link transfer without password should not be password protected
+      expect(await protectedTransfer.isPasswordProtected(linkTransferId)).to.equal(false);
+
+      // Protected link transfer should be password protected
+      expect(await protectedTransfer.isPasswordProtected(protectedLinkTransferId)).to.equal(true);
     });
   });
 
@@ -466,6 +511,82 @@ describe("ProtectedTransfer", function () {
       await expect(
         protectedTransfer.connect(recipient).claimLinkTransfer(regularTransferId)
       ).to.be.rejectedWith("NotLinkTransfer");
+    });
+  });
+
+  describe("Protected Link transfers", function () {
+    let protectedLinkTransferId;
+    const protectedLinkClaimCode = "PROTECTED123";
+    const protectedLinkClaimCodeHash = ethers.keccak256(ethers.toUtf8Bytes(protectedLinkClaimCode));
+
+    beforeEach(async function () {
+      const expiry = await time.latest() + 3600; // 1 hour from now
+
+      const tx = await protectedTransfer.connect(sender).createProtectedLinkTransfer(
+        await idrx.getAddress(),
+        transferAmount,
+        expiry,
+        protectedLinkClaimCodeHash
+      );
+
+      const receipt = await tx.wait();
+      const event = receipt?.logs.find(
+        (log) => log.fragment?.name === "TransferCreated"
+      );
+
+      protectedLinkTransferId = event?.args[0];
+    });
+
+    it("Should create a protected link transfer correctly", async function () {
+      const transfer = await protectedTransfer.getTransfer(protectedLinkTransferId);
+      expect(transfer.sender).to.equal(senderAddress);
+      expect(transfer.recipient).to.equal(ethers.ZeroAddress); // No specific recipient
+      expect(transfer.tokenAddress).to.equal(await idrx.getAddress());
+      expect(transfer.amount).to.equal(transferAmount);
+      expect(transfer.status).to.equal(0); // Pending
+      expect(transfer.isLinkTransfer).to.equal(true); // Is a link transfer
+
+      // Check if it's password protected
+      const isPasswordProtected = await protectedTransfer.isPasswordProtected(protectedLinkTransferId);
+      expect(isPasswordProtected).to.equal(true);
+    });
+
+    it("Should allow claiming a protected link transfer with correct code", async function () {
+      // Check initial balance
+      const initialBalance = await idrx.balanceOf(recipientAddress);
+
+      // Claim with correct code
+      await protectedTransfer.connect(recipient).claimTransfer(protectedLinkTransferId, protectedLinkClaimCode);
+
+      // Check final balance
+      const finalBalance = await idrx.balanceOf(recipientAddress);
+      expect(finalBalance - initialBalance).to.equal(transferAmount);
+
+      // Check transfer status
+      const transfer = await protectedTransfer.getTransfer(protectedLinkTransferId);
+      expect(transfer.status).to.equal(1); // Claimed
+    });
+
+    it("Should not allow claiming a protected link transfer with incorrect code", async function () {
+      await expect(
+        protectedTransfer.connect(recipient).claimTransfer(protectedLinkTransferId, "WRONG_CODE")
+      ).to.be.rejectedWith("InvalidClaimCode");
+    });
+
+    it("Should not allow claiming a protected link transfer with claimLinkTransfer", async function () {
+      await expect(
+        protectedTransfer.connect(recipient).claimLinkTransfer(protectedLinkTransferId)
+      ).to.be.rejectedWith("PasswordProtected");
+    });
+
+    it("Should not allow claiming a protected link transfer after expiry", async function () {
+      // Fast forward time past expiry
+      await time.increase(3601);
+
+      // Try to claim after expiry
+      await expect(
+        protectedTransfer.connect(recipient).claimTransfer(protectedLinkTransferId, protectedLinkClaimCode)
+      ).to.be.rejectedWith("TransferExpired");
     });
   });
 });

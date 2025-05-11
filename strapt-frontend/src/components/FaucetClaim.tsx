@@ -22,12 +22,12 @@ const FaucetClaim = ({ onClose }: FaucetClaimProps) => {
     await new Promise(resolve => setTimeout(resolve, 2000));
     setIsClaiming(false);
     setClaimed(true);
-    
+
     toast({
       title: "Claim Successful",
       description: `You've claimed 10 ${selectedToken.symbol} from the faucet`,
     });
-    
+
     // Reset after showing success
     setTimeout(() => {
       setClaimed(false);
@@ -45,9 +45,9 @@ const FaucetClaim = ({ onClose }: FaucetClaimProps) => {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Claim testnet tokens to try out TrustStream features. These tokens have no real value and are only for testing purposes.
+          Claim testnet tokens to try out STRAPT features. These tokens have no real value and are only for testing purposes.
         </p>
-        
+
         <div className="space-y-2">
           <TokenSelect
             tokens={tokens}
@@ -55,7 +55,7 @@ const FaucetClaim = ({ onClose }: FaucetClaimProps) => {
             onTokenChange={setSelectedToken}
           />
         </div>
-        
+
         <div className="p-3 bg-secondary/30 rounded-lg">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Claim amount:</span>
@@ -67,8 +67,8 @@ const FaucetClaim = ({ onClose }: FaucetClaimProps) => {
         </div>
       </CardContent>
       <CardFooter>
-        <Button 
-          className="w-full" 
+        <Button
+          className="w-full"
           onClick={handleClaim}
           disabled={isClaiming || claimed}
         >

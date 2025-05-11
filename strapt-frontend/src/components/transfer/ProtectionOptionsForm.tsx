@@ -1,13 +1,11 @@
 
-import { Shield, Clock, Lock } from 'lucide-react';
+import { Shield, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { ArrowRight } from 'lucide-react';
 import { useTransferContext } from '@/contexts/TransferContext';
-import DurationSelect from '@/components/DurationSelect';
-import type { DurationUnit } from '@/components/DurationSelect';
 
 interface ProtectionOptionsFormProps {
   onNext: () => void;
@@ -15,23 +13,12 @@ interface ProtectionOptionsFormProps {
 
 const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
   const {
-    withTimeout,
-    setWithTimeout,
-    timeout,
-    setTimeout,
-    timeoutUnit,
-    setTimeoutUnit,
     withPassword,
     setWithPassword,
     password,
     setPassword,
     transferType,
   } = useTransferContext();
-
-  const handleTimeoutChange = (value: number, unit: DurationUnit) => {
-    setTimeout(value);
-    setTimeoutUnit(unit);
-  };
 
   return (
     <Card>
@@ -42,40 +29,6 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <div className="flex items-center">
-              <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-              <label htmlFor="timeout" className="text-sm font-medium">
-                Auto-refund Timeout
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Get your funds back if the recipient doesn't claim in time
-            </p>
-          </div>
-          <Switch
-            id="timeout"
-            checked={withTimeout}
-            onCheckedChange={setWithTimeout}
-          />
-        </div>
-
-        {withTimeout && (
-          <div className="space-y-2 pl-6">
-            <DurationSelect
-              id="timeout-duration"
-              value={timeout}
-              unit={timeoutUnit}
-              onChange={handleTimeoutChange}
-              label="Time until auto-refund"
-            />
-            <p className="text-xs text-muted-foreground">
-              After this time expires, funds can be refunded back to your wallet with a single click
-            </p>
-          </div>
-        )}
-
         {/* Password protection for both transfer types */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
@@ -88,7 +41,9 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
             <p className="text-xs text-muted-foreground">
               {transferType === 'direct'
                 ? 'Recipient must enter a password to receive funds'
-                : 'Recipient must enter a password to claim funds'}
+                : withPassword
+                  ? 'Recipient must enter a password to claim funds'
+                  : 'Anyone with the link can claim funds without a password'}
             </p>
           </div>
           <Switch

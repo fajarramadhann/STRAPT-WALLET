@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import QRCode from '@/components/QRCode';
 import QRCodeScanner from '@/components/QRCodeScanner';
 import { useAccount } from 'wagmi';
-import { useProtectedTransfer } from '@/hooks/use-protected-transfer';
+import { useProtectedTransferV2 } from '@/hooks/use-protected-transfer-v2';
 
 interface TransferDetails {
   id: string;
@@ -45,14 +45,12 @@ const Claims = () => {
   const [manualClaimCode, setManualClaimCode] = useState('');
   const [manualClaimError, setManualClaimError] = useState('');
 
-  // Get claim functions from useProtectedTransfer
+  // Get claim functions from useProtectedTransferV2
   const {
     claimTransfer,
-    claimLinkTransfer,
-    useTransferDetails,
     isPasswordProtected,
     getTransferDetails,
-  } = useProtectedTransfer();
+  } = useProtectedTransferV2();
 
   // Helper function to shorten transfer IDs
   const shortenTransferId = (id: string) => {
@@ -104,19 +102,43 @@ const Claims = () => {
     setPasswordError('');
 
     try {
-      const success = await claimTransfer(transferId, password);
+      // First check if this transfer requires a password using the contract's isPasswordProtected function
+      const requiresPassword = await isPasswordProtected(transferId);
+      console.log('Transfer requires password (from contract):', requiresPassword);
 
+      if (requiresPassword) {
+        // If it requires a password, use claimTransfer with the password
+        if (!password) {
+          setPasswordError('Claim code is required for this transfer');
+          return false;
+        }
+
+        const success = await claimTransfer(transferId, password);
+        if (success) {
+          toast.success('Password-protected transfer claimed successfully!');
+          setShowPasswordDialog(false);
+          setClaimCode('');
+          // Refresh the list of pending claims
+          // fetchPendingClaims();
+          return true;
+        }
+
+        setPasswordError('Failed to claim transfer. Please check the password.');
+        return false;
+      }
+
+      // If it doesn't require a password, use claimTransfer with empty password
+      toast.info('This transfer does not require a password. Claiming directly...');
+      const success = await claimTransfer(transferId, '');
       if (success) {
         toast.success('Transfer claimed successfully!');
         setShowPasswordDialog(false);
         setClaimCode('');
-        // Refresh the list of pending claims
-        // fetchPendingClaims();
         return true;
-      } else {
-        setPasswordError('Failed to claim transfer. Please check the password.');
-        return false;
       }
+
+      setPasswordError('Failed to claim transfer. Please check the transfer ID.');
+      return false;
     } catch (error) {
       console.error('Error claiming transfer:', error);
       setPasswordError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -136,8 +158,9 @@ const Claims = () => {
     setIsLoading(true);
 
     try {
-      // First, check if the transfer requires a password
+      // First, check if the transfer requires a password using the contract's isPasswordProtected function
       const requiresPassword = await isPasswordProtected(transferId);
+      console.log('Transfer requires password (from contract):', requiresPassword);
 
       if (requiresPassword) {
         // Get transfer details to show in the password dialog
@@ -158,7 +181,7 @@ const Claims = () => {
           });
           setManualTransferId(transferId);
           setShowPasswordDialog(true);
-          setIsLoading(false);
+          toast.info('This transfer requires a claim code. Please enter it to proceed.');
           return false; // Don't proceed with claim yet
         }
 
@@ -166,8 +189,9 @@ const Claims = () => {
         return false;
       }
 
-      // If no password required, proceed with claim
-      const success = await claimLinkTransfer(transferId);
+      // If no password required, proceed with claim using empty password
+      toast.info('Claiming transfer without password...');
+      const success = await claimTransfer(transferId, '');
 
       if (success) {
         toast.success('Transfer claimed successfully!');
@@ -208,12 +232,32 @@ const Claims = () => {
       return;
     }
 
-    if (!manualClaimCode) {
-      setPasswordError('Claim code is required');
-      return;
-    }
+    // Check if the transfer requires a password
+    const requiresPassword = await isPasswordProtected(manualTransferId);
 
-    await handleClaimWithPassword(manualTransferId, manualClaimCode);
+    if (requiresPassword) {
+      if (!manualClaimCode) {
+        setPasswordError('Claim code is required');
+        return;
+      }
+      await handleClaimWithPassword(manualTransferId, manualClaimCode);
+    } else {
+      // If no password required, use claimLinkTransfer instead
+      setIsValidating(true);
+      try {
+        // For transfers without password protection, we can claim directly with empty password
+        const success = await claimTransfer(manualTransferId, '');
+        if (success) {
+          toast.success('Transfer claimed successfully!');
+          setShowPasswordDialog(false);
+        }
+      } catch (error) {
+        console.error('Error claiming transfer:', error);
+        setPasswordError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        setIsValidating(false);
+      }
+    }
   };
 
   const handleScanSuccess = (decodedText: string) => {
@@ -233,7 +277,21 @@ const Claims = () => {
             setShowPasswordDialog(true);
           } else {
             // Try to claim as a link transfer (no password)
-            handleClaimLinkTransfer(claimId);
+            toast.info('Checking transfer details...');
+
+            // First check if it requires a password
+            isPasswordProtected(claimId).then(requiresPassword => {
+              if (requiresPassword) {
+                // If it requires a password but none was provided, show the password dialog
+                toast.info('This transfer requires a password. Please enter it.');
+                setManualTransferId(claimId);
+                setShowPasswordDialog(true);
+              } else {
+                // If no password required, claim directly
+                toast.info('Claiming transfer without password...');
+                handleClaimLinkTransfer(claimId);
+              }
+            });
           }
         }
       }
@@ -320,12 +378,16 @@ const Claims = () => {
               </CardContent>
               <CardFooter className="flex flex-col space-y-2">
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     if (claim.passwordProtected) {
+                      // For password-protected transfers, show the password dialog
                       setActiveTransfer(claim);
+                      setManualTransferId(claim.id);
                       setShowPasswordDialog(true);
                     } else {
-                      handleClaim(claim.id);
+                      // For non-password protected transfers, claim directly without showing dialog
+                      toast.info('Claiming transfer without password...');
+                      await handleClaimLinkTransfer(claim.id);
                     }
                   }}
                   className="w-full"
@@ -335,7 +397,9 @@ const Claims = () => {
                       <LockKeyhole className="h-4 w-4 mr-1" /> Claim (Password Protected)
                     </>
                   ) : (
-                    "Claim Transfer"
+                    <>
+                      <Check className="h-4 w-4 mr-1" /> Claim Transfer (No Password)
+                    </>
                   )}
                 </Button>
                 <div className="flex w-full gap-2">
@@ -403,7 +467,11 @@ const Claims = () => {
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Claim Code</DialogTitle>
+            <DialogTitle>
+              {activeTransfer?.passwordProtected
+                ? "Enter Claim Code"
+                : "Claim Transfer (No Password Required)"}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePasswordSubmit}>
             <div className="space-y-4">
@@ -439,12 +507,14 @@ const Claims = () => {
                       </div>
                     )}
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm text-amber-500 font-medium flex items-center justify-center">
-                      <LockKeyhole className="h-4 w-4 mr-1" />
-                      This transfer requires a claim code
-                    </p>
-                  </div>
+                  {activeTransfer.passwordProtected && (
+                    <div className="text-center">
+                      <p className="text-sm text-amber-500 font-medium flex items-center justify-center">
+                        <LockKeyhole className="h-4 w-4 mr-1" />
+                        This transfer requires a claim code
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center mb-4">
@@ -454,29 +524,38 @@ const Claims = () => {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="claimCode">Claim Code</Label>
-                <Input
-                  id="claimCode"
-                  value={manualClaimCode}
-                  onChange={(e) => setManualClaimCode(e.target.value)}
-                  placeholder="Enter the claim code"
-                  className={passwordError ? "border-red-500" : ""}
-                  disabled={isValidating}
-                />
-                {passwordError && (
-                  <p className="text-sm text-red-500">{passwordError}</p>
-                )}
-              </div>
+              {/* Only show claim code input if the transfer requires a password */}
+              {(!activeTransfer || activeTransfer.passwordProtected) && (
+                <div className="space-y-2">
+                  <Label htmlFor="claimCode">Claim Code</Label>
+                  <Input
+                    id="claimCode"
+                    value={manualClaimCode}
+                    onChange={(e) => setManualClaimCode(e.target.value)}
+                    placeholder="Enter the claim code"
+                    className={passwordError ? "border-red-500" : ""}
+                    disabled={isValidating}
+                  />
+                  {passwordError && (
+                    <p className="text-sm text-red-500">{passwordError}</p>
+                  )}
+                </div>
+              )}
 
-              <Button type="submit" className="w-full" disabled={isValidating || !manualClaimCode}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isValidating || (activeTransfer?.passwordProtected && !manualClaimCode)}
+              >
                 {isValidating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Claiming...
                   </>
                 ) : (
-                  "Claim Transfer"
+                  activeTransfer?.passwordProtected
+                    ? "Claim Transfer"
+                    : "Claim Transfer (No Password Required)"
                 )}
               </Button>
             </div>
@@ -506,13 +585,16 @@ const Claims = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="manualClaimCode">Claim Code (if required)</Label>
+              <Label htmlFor="manualClaimCode">Claim Code (only for password-protected transfers)</Label>
               <Input
                 id="manualClaimCode"
                 value={manualClaimCode}
                 onChange={(e) => setManualClaimCode(e.target.value)}
-                placeholder="Enter claim code if needed"
+                placeholder="Only needed for password-protected transfers"
               />
+              <p className="text-xs text-muted-foreground">
+                If the transfer was created without password protection, you can leave this field empty.
+              </p>
             </div>
 
             {/* Button to fetch transfer details */}
@@ -625,6 +707,9 @@ const Claims = () => {
                     return;
                   }
 
+                  // Show a helpful message about password protection
+                  toast.info('Checking if this transfer requires a password...');
+
                   try {
                     // First, get transfer details to show the user what they're claiming
                     const details = await getTransferDetails(manualTransferId);
@@ -635,43 +720,63 @@ const Claims = () => {
 
                     // Check if transfer requires password
                     const requiresPassword = await isPasswordProtected(manualTransferId);
+                    console.log('Transfer requires password:', requiresPassword);
 
-                    if (requiresPassword && !manualClaimCode) {
-                      // Set active transfer for the password dialog
-                      setActiveTransfer({
-                        id: manualTransferId,
-                        sender: details.sender,
-                        recipient: details.recipient,
-                        tokenAddress: details.tokenAddress,
-                        tokenSymbol: details.tokenSymbol,
-                        amount: details.amount,
-                        expiry: details.expiry,
-                        status: details.status,
-                        createdAt: details.createdAt,
-                        isLinkTransfer: details.isLinkTransfer,
-                        passwordProtected: true
-                      });
+                    if (requiresPassword) {
+                      if (!manualClaimCode) {
+                        // If password is required but not provided, show password dialog
+                        setActiveTransfer({
+                          id: manualTransferId,
+                          sender: details.sender,
+                          recipient: details.recipient,
+                          tokenAddress: details.tokenAddress,
+                          tokenSymbol: details.tokenSymbol,
+                          amount: details.amount,
+                          expiry: details.expiry,
+                          status: details.status,
+                          createdAt: details.createdAt,
+                          isLinkTransfer: details.isLinkTransfer,
+                          passwordProtected: true
+                        });
 
-                      setShowManualClaimDialog(false);
-                      setShowPasswordDialog(true);
-                      return;
-                    }
+                        toast.info('This transfer requires a claim code. Please enter it to proceed.');
+                        setShowManualClaimDialog(false);
+                        setShowPasswordDialog(true);
+                        return;
+                      }
 
-                    if (manualClaimCode) {
-                      // Try with password
+                      // If password is required and provided, use it
                       const success = await handleClaimWithPassword(manualTransferId, manualClaimCode);
                       if (success) {
                         setShowManualClaimDialog(false);
                         setManualTransferId('');
                         setManualClaimCode('');
                       }
-                    } else {
-                      // Try as link transfer
-                      const success = await handleClaimLinkTransfer(manualTransferId);
-                      if (success) {
-                        setShowManualClaimDialog(false);
-                        setManualTransferId('');
-                      }
+                      return;
+                    }
+
+                    // If no password required, claim directly without password
+                    setActiveTransfer({
+                      id: manualTransferId,
+                      sender: details.sender,
+                      recipient: details.recipient,
+                      tokenAddress: details.tokenAddress,
+                      tokenSymbol: details.tokenSymbol,
+                      amount: details.amount,
+                      expiry: details.expiry,
+                      status: details.status,
+                      createdAt: details.createdAt,
+                      isLinkTransfer: details.isLinkTransfer,
+                      passwordProtected: false
+                    });
+
+                    toast.info('This transfer does not require a password. Claiming directly...');
+                    const success = await claimTransfer(manualTransferId, '');
+                    if (success) {
+                      toast.success('Transfer claimed successfully! (No password was required)');
+                      setShowManualClaimDialog(false);
+                      setManualTransferId('');
+                      setManualClaimCode('');
                     }
                   } catch (error) {
                     console.error('Error in manual claim:', error);

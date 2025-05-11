@@ -28,7 +28,7 @@ const Profile = () => {
   const { disconnect } = useDisconnect();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  
+
   const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
 
   const handleCopyAddress = () => {
@@ -53,14 +53,14 @@ const Profile = () => {
   const toggleTheme = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    
+
     // Apply the theme
     if (newMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-    
+
     toast({
       title: `${newMode ? 'Dark' : 'Light'} Mode Enabled`,
       description: `Switched to ${newMode ? 'dark' : 'light'} mode`,
@@ -73,7 +73,7 @@ const Profile = () => {
     username: '@trustuser.sei',
     timestamp: new Date().toISOString(),
   };
-  
+
   const profileQRValue = JSON.stringify(profileData);
 
   const menuItems = [
@@ -98,7 +98,7 @@ const Profile = () => {
       onClick: () => console.log('Group Pools clicked'),
     },
     {
-      title: 'About TrustStream',
+      title: 'About STRAPT',
       icon: Info,
       onClick: () => console.log('About clicked'),
     },
@@ -126,16 +126,16 @@ const Profile = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className={`flex gap-2 ${isMobile ? 'justify-center mt-2' : 'ml-auto'}`}>
-              <QRCodeScanner 
-                buttonVariant="outline" 
+              <QRCodeScanner
+                buttonVariant="outline"
                 buttonSize="sm"
                 buttonText="Scan"
                 iconOnly={isMobile}
               />
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setShowQR(true)}
               >
@@ -185,19 +185,19 @@ const Profile = () => {
             <span className="text-xs">Profile</span>
           </TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="activity" className="space-y-4 mt-2">
           <ProfileActivityTimeline />
         </TabsContent>
-        
+
         <TabsContent value="contacts" className="space-y-4 mt-2">
           <QuickContacts />
         </TabsContent>
-        
+
         <TabsContent value="scheduled" className="space-y-4 mt-2">
           <ScheduledTransfers />
         </TabsContent>
-        
+
         <TabsContent value="identity" className="space-y-4 mt-2">
           <DecentralizedIdentity />
         </TabsContent>
@@ -244,9 +244,9 @@ const Profile = () => {
       </Card>
 
       {/* Sign Out Button */}
-      <Button 
-        variant="destructive" 
-        className="w-full flex items-center gap-2" 
+      <Button
+        variant="destructive"
+        className="w-full flex items-center gap-2"
         onClick={handleSignOut}
       >
         <LogOut className="h-4 w-4" /> Sign Out

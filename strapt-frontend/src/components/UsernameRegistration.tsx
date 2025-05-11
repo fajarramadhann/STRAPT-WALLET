@@ -37,7 +37,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
     const value = e.target.value.trim().toLowerCase();
     setUsername(value);
     setAvailable(null);
-    
+
     // Debounce the availability check
     if (value.length >= 3) {
       const timer = setTimeout(() => {
@@ -49,7 +49,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!username || username.length < 3) {
       toast({
         title: "Invalid Username",
@@ -58,10 +58,10 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
       });
       return;
     }
-    
+
     setChecking(true);
     const isAvailable = await checkUsernameAvailability(username);
-    
+
     if (isAvailable) {
       // Move to wallet generation step
       setChecking(false);
@@ -135,7 +135,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                     .sei
                   </div>
                 </div>
-                
+
                 {username && username.length >= 3 && (
                   <div className="flex items-center text-sm mt-2">
                     {checking ? (
@@ -153,12 +153,12 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                     ) : null}
                   </div>
                 )}
-                
+
                 <p className="text-xs text-muted-foreground mt-1">
                   Choose a username for your wallet. This will be your public identity on TrustStream.
                 </p>
               </div>
-              
+
               <div className="space-y-1">
                 <p className="text-sm font-medium">Username Requirements:</p>
                 <ul className="text-xs text-muted-foreground list-disc pl-5">
@@ -168,11 +168,11 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                 </ul>
               </div>
             </div>
-            
+
             <div className="mt-4">
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 disabled={checking || !username || username.length < 3 || available === false}
               >
                 {checking ? (
@@ -187,7 +187,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
             </div>
           </form>
         )}
-        
+
         {step === 2 && (
           <div className="space-y-4">
             <div className="text-center">
@@ -201,7 +201,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                 Generate a new wallet for your username
               </p>
             </div>
-            
+
             <div className="space-y-1 bg-secondary/30 p-3 rounded-md">
               <p className="text-sm font-medium">What happens next:</p>
               <ul className="text-xs text-muted-foreground list-disc pl-5">
@@ -210,10 +210,10 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                 <li>You can use this wallet to send and receive payments</li>
               </ul>
             </div>
-            
+
             <div className="space-y-2">
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 onClick={generateWallet}
                 disabled={generatingAddress}
               >
@@ -226,9 +226,9 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                   'Generate Wallet'
                 )}
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                variant="outline"
+                className="w-full"
                 onClick={prevStep}
                 disabled={generatingAddress}
               >
@@ -237,7 +237,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
             </div>
           </div>
         )}
-        
+
         {step === 3 && (
           <div className="space-y-4">
             <div className="text-center">
@@ -249,14 +249,14 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                 Your username @{username}.sei is now registered
               </p>
             </div>
-            
+
             <div className="space-y-2 p-3 bg-secondary/30 rounded-md">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Your wallet address:</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 px-2" 
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2"
                   onClick={handleCopyAddress}
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -274,11 +274,11 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
       </CardContent>
       {step === 3 && (
         <CardFooter>
-          <Button 
-            className="w-full" 
+          <Button
+            className="w-full"
             onClick={handleComplete}
           >
-            Start Using TrustStream
+            Start Using STRAPT
           </Button>
         </CardFooter>
       )}

@@ -1,5 +1,6 @@
 {
-  "address": "0xb954f29215Cf0239017f54515F83aBFC5d70dCb4",
+  "_comment": "DEPRECATED: This contract has been replaced by ProtectedTransferV2. This file is kept for reference only.",
+  "address": "0x225f179c0d57c3DF357f802BB40d5a4BeaFb4F0C",
   "abi": [
     {
       "inputs": [
@@ -60,6 +61,16 @@
     {
       "inputs": [],
       "name": "NotLinkTransfer",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PasswordProtected",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PasswordRequired",
       "type": "error"
     },
     {
@@ -295,6 +306,40 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "tokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "expiry",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "claimCodeHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "createProtectedLinkTransfer",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "feeCollector",
       "outputs": [
@@ -383,6 +428,25 @@
         }
       ],
       "name": "isTransferClaimable",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "transferId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "isPasswordProtected",
       "outputs": [
         {
           "internalType": "bool",

@@ -36,10 +36,10 @@ const Index = () => {
       <header className="border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold gradient-text">TrustStream</h1>
+            <h1 className="text-2xl font-bold gradient-text">STRAPT</h1>
             <div className="hidden md:flex items-center space-x-6">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
-              <a href="#why" className="text-muted-foreground hover:text-foreground transition-colors">Why TrustStream</a>
+              <a href="#why" className="text-muted-foreground hover:text-foreground transition-colors">Why STRAPT</a>
               <ConnectButton label="Launch App" />
             </div>
             <ConnectButton label="Launch App" className="md:hidden" />
@@ -157,9 +157,9 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Why TrustStream Section */}
+        {/* Why STRAPT Section */}
         <div className="max-w-7xl mx-auto mt-24" id="why">
-          <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center">Why TrustStream?</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center">Why STRAPT?</h2>
           <div className="md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="flex items-start p-6 rounded-2xl bg-card mb-4 md:mb-0">
               <CheckCircle className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
@@ -193,7 +193,7 @@ const Index = () => {
               Join thousands of users who are already experiencing the future of crypto payments.
             </p>
             <ConnectButton
-              label={<>Launch TrustStream <ArrowRight className="ml-2 h-5 w-5" /></>}
+              label={<>Launch STRAPT <ArrowRight className="ml-2 h-5 w-5" /></>}
               size="lg"
               className="text-base"
             />
@@ -204,7 +204,7 @@ const Index = () => {
         <footer className="max-w-7xl mx-auto mt-24 pt-8 border-t border-border">
           <div className="md:flex md:justify-between">
             <div className="mb-6 md:mb-0">
-              <h1 className="text-xl font-bold gradient-text mb-4">TrustStream</h1>
+              <h1 className="text-xl font-bold gradient-text mb-4">STRAPT</h1>
               <p className="text-sm text-muted-foreground max-w-xs">
                 Secure crypto payments, simplified for Web3 users.
               </p>
@@ -238,7 +238,7 @@ const Index = () => {
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-8 pt-8 border-t border-border">
             <p className="text-xs text-muted-foreground mb-4 sm:mb-0">
-              &copy; {new Date().getFullYear()} TrustStream. All rights reserved.
+              &copy; {new Date().getFullYear()} STRAPT. All rights reserved.
             </p>
             <div className="flex space-x-4">
               <a href="#" className="p-2 rounded-full bg-secondary hover:bg-secondary/70 transition-colors">

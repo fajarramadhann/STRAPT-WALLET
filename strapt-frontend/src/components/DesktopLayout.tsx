@@ -37,12 +37,8 @@ const DesktopLayout = () => {
   ];
 
   const getTitle = () => {
-    switch (path) {
-      case '':
-        return 'Dashboard';
-      default:
-        return path.charAt(0).toUpperCase() + path.slice(1);
-    }
+    // Always return STRAPT as the title
+    return 'STRAPT';
   };
 
   return (
@@ -54,7 +50,7 @@ const DesktopLayout = () => {
       )}>
         <div className="p-4 border-b border-border flex items-center justify-between h-16">
           {!sidebarCollapsed && (
-            <h1 className="text-lg font-bold gradient-text">TrustStream</h1>
+            <h1 className="text-lg font-bold gradient-text">STRAPT</h1>
           )}
           <Button
             variant="ghost"
@@ -120,21 +116,22 @@ const DesktopLayout = () => {
         "flex-1 flex flex-col transition-all duration-300",
         sidebarCollapsed ? "ml-[70px]" : "ml-[240px]"
       )}>
-        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm p-4 border-b border-border h-16">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-semibold gradient-text">{getTitle()}</h1>
-            <div className="flex items-center gap-4">
-              {/* <NetworkStatus /> */}
-              <ThemeToggleSimple />
-              <Button variant="ghost" size="icon" className="mr-2">
-                <Bell className="h-5 w-5" />
-              </Button>
-              <XellarWalletProfile />
+        <header className="sticky top-2 z-10 mx-4">
+          <div className="bg-card/90 backdrop-blur-sm rounded-xl shadow-sm border border-border py-2.5 px-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-lg font-bold gradient-text">{getTitle()}</h1>
+              <div className="flex items-center gap-3">
+                <ThemeToggleSimple />
+                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+                  <Bell className="h-4 w-4" />
+                </Button>
+                <XellarWalletProfile />
+              </div>
             </div>
           </div>
         </header>
 
-        <main className="p-6 flex-1 overflow-auto max-w-6xl mx-auto w-full">
+        <main className="p-6 pt-8 flex-1 overflow-auto max-w-6xl mx-auto w-full">
           <Outlet />
         </main>
       </div>

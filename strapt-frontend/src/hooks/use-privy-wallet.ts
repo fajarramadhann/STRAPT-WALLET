@@ -1,3 +1,9 @@
+/**
+ * @deprecated This hook is deprecated and will be removed in a future version.
+ * Privy wallet functionality has been replaced by Xellar.
+ * Please use the Xellar wallet hooks instead.
+ */
+
 import { usePrivy } from '@privy-io/react-auth';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
@@ -9,7 +15,7 @@ interface Wallet {
 
 export function usePrivyWallet() {
   const privy = usePrivy();
-  const { 
+  const {
     ready,
     authenticated,
     user,
@@ -20,15 +26,15 @@ export function usePrivyWallet() {
     linkWallet,
     unlinkWallet,
   } = privy;
-  
+
   // Access wallets from user object instead
   const wallets = user?.linkedAccounts as Wallet[] || [];
-  
+
   const navigate = useNavigate();
 
   // Get the currently active wallet (first embedded wallet or first linked wallet)
   const activeWallet = wallets?.find(wallet => wallet.walletClientType === 'privy')
-    || wallets?.[0] 
+    || wallets?.[0]
     || null;
 
   // Check if user has any wallet
@@ -82,4 +88,4 @@ export function usePrivyWallet() {
     disconnectWallet,
     login,
   };
-} 
+}

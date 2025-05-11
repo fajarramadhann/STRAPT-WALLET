@@ -16,12 +16,11 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
     recipient,
     amount,
     note,
-    withTimeout,
     withPassword,
     selectedToken,
     transferType,
-    formatTimeout,
     isLoading,
+    isDirectTransferLoading,
     isApproving,
     isApproved,
     approveToken,
@@ -43,23 +42,27 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
       // Log debug information
       console.log('Confirming transfer with type:', transferType);
       console.log('Amount:', amount, 'Token:', selectedToken.symbol);
-      console.log('Timeout enabled:', withTimeout, 'Password enabled:', withPassword);
+      console.log('Password enabled:', withPassword);
+
+      // Validate inputs before proceeding
+      if (!amount || Number.parseFloat(amount) <= 0) {
+        toast.error("Please enter a valid amount");
+        return;
+      }
+
+      // Only require recipient for direct transfers
+      if (transferType === 'direct' && !recipient) {
+        toast.error("Please enter a recipient address");
+        return;
+      }
+
+      // For Link/QR transfers, recipient is optional
 
       // Call the appropriate transfer function based on transfer type
       if (transferType === 'direct') {
         try {
-          // Validate inputs before proceeding
-          if (!amount || Number.parseFloat(amount) <= 0) {
-            toast.error("Please enter a valid amount");
-            return;
-          }
-
-          if (!recipient) {
-            toast.error("Please enter a recipient address");
-            return;
-          }
-
-          // Create the direct transfer
+          // For direct transfers without password, we can skip approval
+          // The createProtectedTransfer function will handle this case
           const result = await createProtectedTransfer();
           console.log('Direct transfer result:', result);
           success = !!result;
@@ -70,12 +73,6 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
         }
       } else if (transferType === 'claim') {
         try {
-          // Validate inputs before proceeding
-          if (!amount || Number.parseFloat(amount) <= 0) {
-            toast.error("Please enter a valid amount");
-            return;
-          }
-
           // Create the link transfer
           const result = await createProtectedLinkTransfer();
           console.log('Link transfer result:', result);
@@ -108,7 +105,34 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
       <CardContent className="space-y-6">
         {/* Transfer Steps */}
         <div className="mb-2">
-          {!isApproved && !isApproving && (
+          {/* Show special alert for direct transfers without password protection */}
+          {transferType === 'direct' && !withPassword && !isDirectTransferLoading && (
+            <Alert className="mt-4 bg-blue-50 border-blue-200">
+              <Check className="h-4 w-4 text-blue-500" />
+              <AlertTitle className="text-blue-700">Instant Direct Transfer</AlertTitle>
+              <AlertDescription className="text-blue-600">
+                You've selected an instant direct transfer. This will send {selectedToken.symbol} tokens directly to the recipient's
+                wallet without using the protected transfer contract. The transfer will be immediate and cannot be refunded.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Show loading animation for direct transfers */}
+          {transferType === 'direct' && !withPassword && isDirectTransferLoading && (
+            <Alert className="mt-4 bg-blue-50 border-blue-200">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              <AlertTitle className="text-blue-700">Processing Direct Transfer</AlertTitle>
+              <AlertDescription className="text-blue-600">
+                Please wait while we process your direct transfer. This may take a few moments to complete.
+                <div className="mt-2 w-full bg-blue-100 rounded-full h-2.5">
+                  <div className="bg-blue-500 h-2.5 rounded-full animate-pulse w-full" />
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Only show approval alerts for protected transfers */}
+          {(transferType !== 'direct' || withPassword) && !isApproved && !isApproving && (
             <Alert variant="default" className="mt-4">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Token Approval Required</AlertTitle>
@@ -132,10 +156,15 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
           {isApproved && (
             <Alert className="mt-4 bg-green-50 border-green-200">
               <Check className="h-4 w-4 text-green-500" />
-              <AlertTitle className="text-green-700">Token Approved</AlertTitle>
+              <AlertTitle className="text-green-700">
+                {transferType === 'direct' && !withPassword ? 'Ready to Transfer' : 'Token Approved'}
+              </AlertTitle>
               <AlertDescription className="text-green-600">
-                You have successfully approved the contract to use your {selectedToken.symbol} tokens.
-                Please click the "Confirm Transfer" button below to complete your transfer.
+                {transferType === 'direct' && !withPassword
+                  ? `You can now send your ${selectedToken.symbol} tokens directly to the recipient.`
+                  : `You have successfully approved the contract to use your ${selectedToken.symbol} tokens.
+                     Please click the "Confirm Transfer" button below to complete your transfer.`
+                }
               </AlertDescription>
             </Alert>
           )}
@@ -147,9 +176,15 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
           <div className="flex justify-between mb-2">
             <span className="text-sm text-muted-foreground">Recipient:</span>
             <span className="font-medium">
-              {recipient && recipient.length > 12
-                ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}`
-                : recipient}
+              {recipient ? (
+                recipient.length > 12
+                  ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}`
+                  : recipient
+              ) : (
+                transferType === 'direct'
+                  ? 'Not specified'
+                  : 'Anyone with the link/QR code'
+              )}
             </span>
           </div>
           <div className="flex justify-between mb-2">
@@ -158,7 +193,11 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
           </div>
           <div className="flex justify-between mb-2">
             <span className="text-sm text-muted-foreground">Method:</span>
-            <span className="font-medium">{transferType === 'direct' ? 'Direct Transfer' : 'Claim via Link/QR'}</span>
+            <span className="font-medium">
+              {transferType === 'direct'
+                ? (withPassword ? 'Protected Direct Transfer' : 'Instant Direct Transfer')
+                : 'Claim via Link/QR'}
+            </span>
           </div>
           {note && (
             <div className="flex justify-between mb-2">
@@ -166,12 +205,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
               <span className="font-medium">{note}</span>
             </div>
           )}
-          {withTimeout && (
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-muted-foreground">Timeout:</span>
-              <span className="font-medium">{formatTimeout()}</span>
-            </div>
-          )}
+          {/* Auto-refund timeout is always 24 hours, no need to show it in the UI */}
           {withPassword && (
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Password Protected:</span>
@@ -182,32 +216,25 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
         <div className="border border-border rounded-lg p-4">
           <div className="flex justify-between mb-2">
             <span className="text-sm text-muted-foreground">Transfer Fee:</span>
-            <span className="font-medium">0.001 {selectedToken.symbol}</span>
+            <span className="font-medium">
+              {transferType === 'direct' && !withPassword
+                ? 'No fee'
+                : `0.001 ${selectedToken.symbol}`}
+            </span>
           </div>
           <div className="flex justify-between font-medium">
             <span>Total:</span>
-            <span>{(Number.parseFloat(amount) + 0.001).toFixed(3)} {selectedToken.symbol}</span>
+            <span>
+              {transferType === 'direct' && !withPassword
+                ? `${Number.parseFloat(amount).toFixed(3)} ${selectedToken.symbol}`
+                : `${(Number.parseFloat(amount) + 0.001).toFixed(3)} ${selectedToken.symbol}`}
+            </span>
           </div>
         </div>
       </CardContent>
       <CardFooter>
-        {!isApproved ? (
-          <Button
-            type="button"
-            onClick={handleApprove}
-            className="w-full"
-            disabled={isApproving || isLoading}
-          >
-            {isApproving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Approving Token...
-              </>
-            ) : (
-              "Approve Token"
-            )}
-          </Button>
-        ) : (
+        {/* For direct transfers without password protection, show transfer button directly */}
+        {transferType === 'direct' && !withPassword ? (
           <Button
             type="button"
             onClick={handleConfirm}
@@ -217,12 +244,47 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing Transfer...
+                Processing Direct Transfer...
               </>
             ) : (
-              "Confirm Transfer"
+              "Send Direct Transfer"
             )}
           </Button>
+        ) : (
+          /* For protected transfers, show approval button first if not approved */
+          !isApproved ? (
+            <Button
+              type="button"
+              onClick={handleApprove}
+              className="w-full"
+              disabled={isApproving || isLoading}
+            >
+              {isApproving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Approving Token...
+                </>
+              ) : (
+                "Approve Token"
+              )}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={handleConfirm}
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing Protected Transfer...
+                </>
+              ) : (
+                "Confirm Protected Transfer"
+              )}
+            </Button>
+          )
         )}
       </CardFooter>
     </Card>
