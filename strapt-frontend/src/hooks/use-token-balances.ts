@@ -16,8 +16,8 @@ const IDRX_DECIMALS = 2;
 export function useTokenBalances() {
   const { address, isConnected } = useAccount();
   const [tokens, setTokens] = useState<TokenOption[]>([
-    { symbol: 'IDRX', name: 'IDRX Token', balance: 0 },
-    { symbol: 'USDC', name: 'USD Coin', balance: 0 },
+    { symbol: 'IDRX', name: 'IDRX Token', balance: 0, icon: '/IDRX BLUE COIN.svg' },
+    { symbol: 'USDC', name: 'USD Coin', balance: 0, icon: '/usd-coin-usdc-logo.svg' },
   ]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,8 +43,8 @@ export function useTokenBalances() {
   useEffect(() => {
     if (!isConnected) {
       setTokens([
-        { symbol: 'IDRX', name: 'IDRX Token', balance: 0 },
-        { symbol: 'USDC', name: 'USD Coin', balance: 0 },
+        { symbol: 'IDRX', name: 'IDRX Token', balance: 0, icon: '/IDRX BLUE COIN.svg' },
+        { symbol: 'USDC', name: 'USD Coin', balance: 0, icon: '/usd-coin-usdc-logo.svg' },
       ]);
       setIsLoading(false);
       return;
@@ -57,12 +57,14 @@ export function useTokenBalances() {
         {
           symbol: 'IDRX',
           name: 'IDRX Token',
-          balance: idrxBalance ? parseFloat(idrxBalance.formatted) : 0
+          balance: idrxBalance ? Number.parseFloat(idrxBalance.formatted) : 0,
+          icon: '/IDRX BLUE COIN.svg'
         },
         {
           symbol: 'USDC',
           name: 'USD Coin',
-          balance: usdcBalance ? parseFloat(usdcBalance.formatted) : 0
+          balance: usdcBalance ? Number.parseFloat(usdcBalance.formatted) : 0,
+          icon: '/usd-coin-usdc-logo.svg'
         },
       ];
       setTokens(updatedTokens);

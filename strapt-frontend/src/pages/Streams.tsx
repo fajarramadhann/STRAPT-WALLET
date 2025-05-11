@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Play, Pause, StopCircle, PlusCircle, BarChart2, ArrowRight, Milestone, CircleDollarSign } from 'lucide-react';
+import { Play, Pause, StopCircle, PlusCircle, BarChart2, ArrowRight, Milestone, CircleDollarSign, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ import { StreamStatus } from '@/hooks/use-payment-stream';
 import { useXellarWallet } from '@/hooks/use-xellar-wallet';
 import { Loading } from '@/components/ui/loading';
 import LiveStreamCounter from '@/components/LiveStreamCounter';
+import InfoTooltip from '@/components/InfoTooltip';
 
 // UI Stream interface that extends the contract Stream type
 interface UIStream {
@@ -188,6 +189,26 @@ const Streams = () => {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate amount
+    if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount greater than 0",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if amount is greater than balance
+    if (selectedToken.balance && Number(amount) > selectedToken.balance) {
+      toast({
+        title: "Insufficient Balance",
+        description: `You only have ${selectedToken.balance} ${selectedToken.symbol} available`,
         variant: "destructive"
       });
       return;
@@ -422,13 +443,29 @@ const Streams = () => {
       {!showCreate ? (
         <>
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Payment Streams</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-semibold">Payment Streams</h2>
+              <InfoTooltip
+                content={
+                  <div>
+                    <p className="font-medium mb-1">About Payment Streams</p>
+                    <p className="mb-1">Payment streams allow you to send tokens gradually over time to recipients.</p>
+                    <ul className="list-disc pl-4 text-xs space-y-1">
+                      <li>Tokens are streamed continuously in real-time</li>
+                      <li>Recipients can claim tokens at any time</li>
+                      <li>Senders can pause, resume, or cancel streams</li>
+                      <li>Add milestones to release funds at specific points</li>
+                    </ul>
+                  </div>
+                }
+              />
+            </div>
             <Button
               onClick={() => setShowCreate(true)}
               size="sm"
               className="flex items-center gap-1"
             >
-              <PlusCircle className="h-4 w-4" /> New
+              <PlusCircle className="h-4 w-4" /> New Stream
             </Button>
           </div>
 
@@ -450,15 +487,21 @@ const Streams = () => {
                       <CardHeader className="pb-2">
                         <div className="flex justify-between">
                           <CardTitle className="text-base">{formatAddress(stream.recipient)}</CardTitle>
-                          <div className="flex items-center gap-1 text-sm">
+                          <div className="flex items-center gap-1 text-sm relative group">
                             {getStatusIcon(stream.status)}
                             <span className="capitalize">{stream.status}</span>
+                            <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                              {stream.status === 'active' && "Tokens are actively streaming to the recipient."}
+                              {stream.status === 'paused' && "Stream is temporarily paused. No tokens are being streamed."}
+                              {stream.status === 'completed' && "Stream has completed. All tokens have been streamed."}
+                              {stream.status === 'canceled' && "Stream was canceled. Remaining tokens returned to sender."}
+                            </div>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="pb-3">
                         <div className="space-y-3">
-                          <div>
+                          <div className="relative group">
                             <LiveStreamCounter
                               startTime={stream.startTime}
                               endTime={stream.endTime}
@@ -479,21 +522,56 @@ const Streams = () => {
                                 }
                               }}
                             />
+                            <div className="absolute top-0 right-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <InfoTooltip
+                                content={
+                                  <div>
+                                    <p className="font-medium mb-1">Stream Progress</p>
+                                    <p className="mb-1">This shows how many tokens have been streamed so far.</p>
+                                    <ul className="list-disc pl-4 text-xs space-y-1">
+                                      <li>For active streams, this updates every 5 seconds</li>
+                                      <li>When a stream reaches 100%, it automatically completes</li>
+                                      <li>Recipients can claim tokens at any time</li>
+                                      <li>After claiming, the stream starts from 0 again</li>
+                                    </ul>
+                                  </div>
+                                }
+                                side="left"
+                              />
+                            </div>
                             <Progress
                               value={(stream.streamed / stream.total) * 100}
                               className={getProgressColor(stream.status)}
                             />
                             {stream.milestones && stream.milestones.length > 0 && getMilestoneMarkers(stream)}
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Rate</span>
+                          <div className="flex justify-between text-sm relative group">
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              Rate
+                              <InfoTooltip
+                                content="The rate at which tokens are streamed to the recipient over time."
+                                iconSize={12}
+                              />
+                            </span>
                             <span>{stream.rate}</span>
                           </div>
 
                           {stream.milestones && stream.milestones.length > 0 && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground relative group">
                               <Milestone className="h-3 w-3" />
                               <span>{stream.milestones.length} milestone{stream.milestones.length !== 1 ? 's' : ''}</span>
+                              <div className="absolute bottom-full left-0 mb-2 w-64 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                                <p className="font-medium mb-1">Milestones</p>
+                                <p className="mb-2">This stream has {stream.milestones.length} milestone{stream.milestones.length !== 1 ? 's' : ''} that can be released by the sender:</p>
+                                <ul className="space-y-1">
+                                  {stream.milestones.map((milestone) => (
+                                    <li key={milestone.id} className="flex justify-between">
+                                      <span>{milestone.description}</span>
+                                      <span className="font-medium">{milestone.percentage}%</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
                             </div>
                           )}
 
@@ -505,129 +583,149 @@ const Streams = () => {
                           // Sender controls
                           <div className="grid grid-cols-2 gap-2 w-full">
                             {stream.status === 'active' ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  try {
-                                    await pauseStream(stream.id);
-                                    // Update local state immediately
-                                    updateStreamStatus(stream.id, StreamStatus.Paused);
-                                    toast({
-                                      title: "Stream Paused",
-                                      description: `Successfully paused stream to ${formatAddress(stream.recipient)}`
-                                    });
-                                    // Still refetch to ensure data consistency
-                                    refetchStreams();
-                                  } catch (error) {
-                                    console.error('Error pausing stream:', error);
-                                    toast({
-                                      title: "Error Pausing Stream",
-                                      description: error instanceof Error ? error.message : "An unknown error occurred",
-                                      variant: "destructive"
-                                    });
-                                  }
-                                }}
-                              >
-                                <Pause className="h-4 w-4 mr-1" /> Pause
-                              </Button>
+                              <div className="relative group">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await pauseStream(stream.id);
+                                      // Update local state immediately
+                                      updateStreamStatus(stream.id, StreamStatus.Paused);
+                                      toast({
+                                        title: "Stream Paused",
+                                        description: `Successfully paused stream to ${formatAddress(stream.recipient)}`
+                                      });
+                                      // Still refetch to ensure data consistency
+                                      refetchStreams();
+                                    } catch (error) {
+                                      console.error('Error pausing stream:', error);
+                                      toast({
+                                        title: "Error Pausing Stream",
+                                        description: error instanceof Error ? error.message : "An unknown error occurred",
+                                        variant: "destructive"
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <Pause className="h-4 w-4 mr-1" /> Pause
+                                </Button>
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                                  Temporarily stop the stream. The recipient won't receive more tokens until you resume.
+                                </div>
+                              </div>
                             ) : (
+                              <div className="relative group">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await resumeStream(stream.id);
+                                      // Update local state immediately
+                                      updateStreamStatus(stream.id, StreamStatus.Active);
+                                      toast({
+                                        title: "Stream Resumed",
+                                        description: `Successfully resumed stream to ${formatAddress(stream.recipient)}`
+                                      });
+                                      // Still refetch to ensure data consistency
+                                      refetchStreams();
+                                    } catch (error) {
+                                      console.error('Error resuming stream:', error);
+                                      toast({
+                                        title: "Error Resuming Stream",
+                                        description: error instanceof Error ? error.message : "An unknown error occurred",
+                                        variant: "destructive"
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <Play className="h-4 w-4 mr-1" /> Resume
+                                </Button>
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                                  Continue a paused stream. The recipient will start receiving tokens again.
+                                </div>
+                              </div>
+                            )}
+                            <div className="relative group">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={async () => {
                                   try {
-                                    await resumeStream(stream.id);
+                                    await cancelStream(stream.id);
                                     // Update local state immediately
-                                    updateStreamStatus(stream.id, StreamStatus.Active);
+                                    updateStreamStatus(stream.id, StreamStatus.Canceled);
                                     toast({
-                                      title: "Stream Resumed",
-                                      description: `Successfully resumed stream to ${formatAddress(stream.recipient)}`
+                                      title: "Stream Canceled",
+                                      description: `Successfully canceled stream to ${formatAddress(stream.recipient)}`
                                     });
                                     // Still refetch to ensure data consistency
                                     refetchStreams();
                                   } catch (error) {
-                                    console.error('Error resuming stream:', error);
+                                    console.error('Error canceling stream:', error);
                                     toast({
-                                      title: "Error Resuming Stream",
+                                      title: "Error Canceling Stream",
                                       description: error instanceof Error ? error.message : "An unknown error occurred",
                                       variant: "destructive"
                                     });
                                   }
                                 }}
                               >
-                                <Play className="h-4 w-4 mr-1" /> Resume
+                                <StopCircle className="h-4 w-4 mr-1" /> Cancel
                               </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  await cancelStream(stream.id);
-                                  // Update local state immediately
-                                  updateStreamStatus(stream.id, StreamStatus.Canceled);
-                                  toast({
-                                    title: "Stream Canceled",
-                                    description: `Successfully canceled stream to ${formatAddress(stream.recipient)}`
-                                  });
-                                  // Still refetch to ensure data consistency
-                                  refetchStreams();
-                                } catch (error) {
-                                  console.error('Error canceling stream:', error);
-                                  toast({
-                                    title: "Error Canceling Stream",
-                                    description: error instanceof Error ? error.message : "An unknown error occurred",
-                                    variant: "destructive"
-                                  });
-                                }
-                              }}
-                            >
-                              <StopCircle className="h-4 w-4 mr-1" /> Cancel
-                            </Button>
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                                Permanently stop the stream. Any unclaimed tokens will be returned to you.
+                              </div>
+                            </div>
                           </div>
                         ) : stream.isRecipient ? (
                           // Recipient controls
                           <div className="w-full">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="w-full"
-                              onClick={async () => {
-                                try {
-                                  await withdrawFromStream(stream.id);
+                            <div className="relative group">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="w-full"
+                                onClick={async () => {
+                                  try {
+                                    await withdrawFromStream(stream.id);
 
-                                  // Update the local state to reflect that tokens have been claimed
-                                  // When a recipient claims tokens, the stream should start from 0 again
+                                    // Update the local state to reflect that tokens have been claimed
+                                    // When a recipient claims tokens, the stream should start from 0 again
 
-                                  // Update the stream in the local state to set streamed amount to 0
-                                  setActiveStreams(prev =>
-                                    prev.map(s =>
-                                      s.id === stream.id
-                                        ? { ...s, streamed: 0 }
-                                        : s
-                                    )
-                                  );
+                                    // Update the stream in the local state to set streamed amount to 0
+                                    setActiveStreams(prev =>
+                                      prev.map(s =>
+                                        s.id === stream.id
+                                          ? { ...s, streamed: 0 }
+                                          : s
+                                      )
+                                    );
 
-                                  toast({
-                                    title: "Tokens Claimed",
-                                    description: "Successfully claimed tokens from the stream"
-                                  });
+                                    toast({
+                                      title: "Tokens Claimed",
+                                      description: "Successfully claimed tokens from the stream"
+                                    });
 
-                                  // Refetch to get updated streamed amount from blockchain
-                                  refetchStreams();
-                                } catch (error) {
-                                  console.error('Error claiming tokens:', error);
-                                  toast({
-                                    title: "Error Claiming Tokens",
-                                    description: error instanceof Error ? error.message : "An unknown error occurred",
-                                    variant: "destructive"
-                                  });
-                                }
-                              }}
-                            >
-                              <CircleDollarSign className="h-4 w-4 mr-1" /> Claim Tokens
-                            </Button>
+                                    // Refetch to get updated streamed amount from blockchain
+                                    refetchStreams();
+                                  } catch (error) {
+                                    console.error('Error claiming tokens:', error);
+                                    toast({
+                                      title: "Error Claiming Tokens",
+                                      description: error instanceof Error ? error.message : "An unknown error occurred",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                              >
+                                <CircleDollarSign className="h-4 w-4 mr-1" /> Claim Tokens
+                              </Button>
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                                Withdraw tokens that have been streamed to you so far. After claiming, the stream will start from 0 again.
+                              </div>
+                            </div>
                           </div>
                         ) : (
                           // Viewer (not sender or recipient)
@@ -668,15 +766,21 @@ const Streams = () => {
                       <CardHeader className="pb-2">
                         <div className="flex justify-between">
                           <CardTitle className="text-base">{formatAddress(stream.recipient)}</CardTitle>
-                          <div className="flex items-center gap-1 text-sm">
+                          <div className="flex items-center gap-1 text-sm relative group">
                             {getStatusIcon(stream.status)}
                             <span className="capitalize">{stream.status}</span>
+                            <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                              {stream.status === 'active' && "Tokens are actively streaming to the recipient."}
+                              {stream.status === 'paused' && "Stream is temporarily paused. No tokens are being streamed."}
+                              {stream.status === 'completed' && "Stream has completed. All tokens have been streamed."}
+                              {stream.status === 'canceled' && "Stream was canceled. Remaining tokens returned to sender."}
+                            </div>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="pb-3">
                         <div className="space-y-3">
-                          <div>
+                          <div className="relative group">
                             <LiveStreamCounter
                               startTime={stream.startTime}
                               endTime={stream.endTime}
@@ -686,13 +790,34 @@ const Streams = () => {
                               token={stream.token}
                               streamId={stream.id}
                             />
+                            <div className="absolute top-0 right-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <InfoTooltip
+                                content={
+                                  <div>
+                                    <p className="font-medium mb-1">Stream Progress</p>
+                                    <p className="mb-1">This shows how many tokens have been streamed in total.</p>
+                                    <ul className="list-disc pl-4 text-xs space-y-1">
+                                      <li>Completed streams show 100% of tokens streamed</li>
+                                      <li>Canceled streams show the amount streamed before cancellation</li>
+                                    </ul>
+                                  </div>
+                                }
+                                side="left"
+                              />
+                            </div>
                             <Progress
                               value={(stream.streamed / stream.total) * 100}
                               className="bg-blue-500"
                             />
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Rate</span>
+                          <div className="flex justify-between text-sm relative group">
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              Rate
+                              <InfoTooltip
+                                content="The rate at which tokens were streamed to the recipient over time."
+                                iconSize={12}
+                              />
+                            </span>
                             <span>{stream.rate}</span>
                           </div>
                         </div>
@@ -731,10 +856,10 @@ const Streams = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="recipient">Recipient Username</Label>
+                  <Label htmlFor="recipient">Recipient</Label>
                   <Input
                     id="recipient"
-                    placeholder="@username.sei"
+                    placeholder="wallet address 0x..."
                     value={recipient}
                     onChange={(e) => setRecipient(e.target.value)}
                     required
@@ -762,7 +887,13 @@ const Streams = () => {
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       required
-                      className="pr-16"
+                      className={`pr-16 ${
+                        amount && (
+                          Number.isNaN(Number(amount)) ||
+                          Number(amount) <= 0 ||
+                          (selectedToken.balance && Number(amount) > selectedToken.balance)
+                        ) ? 'border-red-500 focus-visible:ring-red-500' : ''
+                      }`}
                     />
                     <button
                       type="button"
@@ -775,6 +906,21 @@ const Streams = () => {
                       MAX
                     </button>
                   </div>
+                  {amount && Number.isNaN(Number(amount)) && (
+                    <p className="text-xs text-red-500">
+                      Please enter a valid number
+                    </p>
+                  )}
+                  {amount && !Number.isNaN(Number(amount)) && Number(amount) <= 0 && (
+                    <p className="text-xs text-red-500">
+                      Amount must be greater than 0
+                    </p>
+                  )}
+                  {amount && !Number.isNaN(Number(amount)) && selectedToken.balance && Number(amount) > selectedToken.balance && (
+                    <p className="text-xs text-red-500">
+                      Insufficient balance
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Available: {selectedToken.balance?.toFixed(2) || 0} {selectedToken.symbol}
                   </p>
@@ -807,7 +953,18 @@ const Streams = () => {
                 )}
               </CardContent>
               <CardFooter>
-                <Button type="submit" className="w-full" disabled={isCreatingStream}>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={
+                    isCreatingStream ||
+                    !recipient ||
+                    !amount ||
+                    Number.isNaN(Number(amount)) ||
+                    Number(amount) <= 0 ||
+                    (selectedToken.balance && Number(amount) > selectedToken.balance)
+                  }
+                >
                   {isCreatingStream ? (
                     <>
                       <Loading size="sm" className="mr-2" /> Creating Stream...
@@ -867,8 +1024,8 @@ const Streams = () => {
 };
 
 const tokens: TokenOption[] = [
-  { symbol: 'USDC', name: 'USD Coin', balance: 500.45 },
-  { symbol: 'IDRX', name: 'IDRX', balance: 1000.00 },
+  { symbol: 'IDRX', name: 'IDRX Token', balance: 1000.00, icon: '/IDRX BLUE COIN.svg' },
+  { symbol: 'USDC', name: 'USD Coin', balance: 500.45, icon: '/usd-coin-usdc-logo.svg' },
 ];
 
 export default Streams;

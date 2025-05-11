@@ -93,6 +93,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
     symbol: 'IDRX',
     name: 'IDRX Token',
     balance: 0,
+    icon: '/IDRX BLUE COIN.svg',
   });
 
   useEffect(() => {
@@ -146,6 +147,27 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   // Get token address from selected token
   const getTokenAddress = (): `0x${string}` => {
     return selectedToken.symbol === 'USDC' ? USDC_ADDRESS : IDRX_ADDRESS;
+  };
+
+  // Validate amount before transfer
+  const validateAmount = (): boolean => {
+    // Check if amount is empty or not a number
+    if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+      toast.error("Invalid amount", {
+        description: "Please enter a valid amount greater than 0"
+      });
+      return false;
+    }
+
+    // Check if amount is greater than balance
+    if (selectedToken.balance && Number(amount) > selectedToken.balance) {
+      toast.error("Insufficient balance", {
+        description: `You only have ${selectedToken.balance} ${selectedToken.symbol} available`
+      });
+      return false;
+    }
+
+    return true;
   };
 
   // Approve token for transfer
@@ -224,6 +246,11 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       // Check if wallet is connected
       if (!address) {
         toast.error("No wallet connected");
+        return false;
+      }
+
+      // Validate amount
+      if (!validateAmount()) {
         return false;
       }
 
@@ -370,6 +397,11 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
 
       if (!account || !account.address) {
         toast.error("No wallet connected");
+        return false;
+      }
+
+      // Validate amount
+      if (!validateAmount()) {
         return false;
       }
 

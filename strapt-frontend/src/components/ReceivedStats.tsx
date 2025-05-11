@@ -33,11 +33,11 @@ const ReceivedStats = ({ totalReceived, recentActivity }: ReceivedStatsProps) =>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-secondary/20 p-3 rounded-lg">
               <div className="text-sm text-muted-foreground">Total Received</div>
-              <div className="text-2xl font-semibold">{totalReceived.toFixed(2)} SEI</div>
+              <div className="text-2xl font-semibold">{totalReceived.toFixed(2)} IDRX</div>
             </div>
             <div className="bg-secondary/20 p-3 rounded-lg">
               <div className="text-sm text-muted-foreground">Last 7 Days</div>
-              <div className="text-2xl font-semibold">{last7DaysReceived.toFixed(2)} SEI</div>
+              <div className="text-2xl font-semibold">{last7DaysReceived.toFixed(2)} IDRX</div>
             </div>
           </div>
           

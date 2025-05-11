@@ -145,7 +145,7 @@ const Home = () => {
             ) : tokens.length > 0 ? (
               <div className="space-y-4">
                 {/* USDC Balance */}
-                {usdcBalance && (
+                {/* {usdcBalance && (
                   <div className="border-b pb-3">
                     <div className="text-2xl font-bold mb-1">
                       {usdcBalance.formatted} {usdcBalance.symbol}
@@ -154,13 +154,20 @@ const Home = () => {
                       ≈ ${Number(usdcBalance.formatted).toFixed(2)} USD
                     </div>
                   </div>
-                )}
+                )} */}
 
                 {/* IDRX Balance */}
                 {idrxBalance && (
                   <div>
-                    <div className="text-2xl font-bold mb-1">
-                      {idrxBalance.formatted} {idrxBalance.symbol}
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <img
+                        src="/IDRX BLUE COIN.svg"
+                        alt="IDRX"
+                        className="w-8 h-8"
+                      />
+                      <div className="text-2xl font-bold">
+                        {idrxBalance.formatted} {idrxBalance.symbol}
+                      </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
                       ≈ ${(Number(idrxBalance.formatted) * prices.idrx).toFixed(2)} USD

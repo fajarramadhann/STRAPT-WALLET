@@ -11,10 +11,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
-import { Network, LogOut, Copy, ExternalLink, Wallet, Check } from 'lucide-react';
+import { Network, LogOut, Copy, ExternalLink, Wallet, Check, HelpCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useConfig, useChainId, useSwitchChain, useBalance } from 'wagmi';
 import { polygonAmoy, liskSepolia, baseSepolia } from 'viem/chains';
+import InfoTooltip from '@/components/InfoTooltip';
 
 const XellarWalletProfile = () => {
   const { isConnected, address, disconnectWallet, connectWallet } = useXellarWallet();
@@ -44,10 +45,16 @@ const XellarWalletProfile = () => {
   // If not connected, show connect button
   if (!isConnected || !address) {
     return (
-      <Button onClick={() => connectWallet()} className="gap-2" size="sm">
-        <Wallet className="h-4 w-4" />
-        Connect Wallet
-      </Button>
+      <div className="relative group">
+        <Button onClick={() => connectWallet()} className="gap-2" size="sm">
+          <Wallet className="h-4 w-4" />
+          Connect Wallet
+        </Button>
+        <div className="absolute bottom-full right-0 mb-2 w-64 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+          <p className="font-medium mb-1">Connect Your Wallet</p>
+          <p>Connect your wallet to access payment streams, transfers, and other features.</p>
+        </div>
+      </div>
     );
   }
 
@@ -122,9 +129,19 @@ const XellarWalletProfile = () => {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{truncatedAddress}</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {balance && `${Number.parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}`}
-            </p>
+            <div className="flex items-center gap-1 text-xs leading-none text-muted-foreground">
+              <span>{balance && `${Number.parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}`}</span>
+              <InfoTooltip
+                content={
+                  <div>
+                    <p className="font-medium mb-1">Your Balance</p>
+                    <p>This shows your current balance on the selected network.</p>
+                    <p className="mt-1 text-xs">You can switch networks using the dropdown menu.</p>
+                  </div>
+                }
+                iconSize={12}
+              />
+            </div>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -141,6 +158,17 @@ const XellarWalletProfile = () => {
           <div className="flex items-center">
             <Network className="mr-2 h-4 w-4" />
             <span>Network</span>
+            <InfoTooltip
+              content={
+                <div>
+                  <p className="font-medium mb-1">Switch Network</p>
+                  <p>Select which blockchain network you want to use.</p>
+                  <p className="mt-1 text-xs">Different networks may have different tokens and features available.</p>
+                </div>
+              }
+              iconSize={12}
+              className="ml-1"
+            />
           </div>
         </DropdownMenuLabel>
         {networks.map((network) => (

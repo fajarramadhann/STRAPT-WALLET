@@ -60,8 +60,8 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
               <Input
                 id="recipient"
                 placeholder={transferType === 'direct'
-                  ? "@username or wallet address 0x..."
-                  : "Optional for Link/QR transfers"}
+                  ? "wallet address 0x..."
+                  : "wallet address 0x..."}
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
                 required={transferType === 'direct'}
@@ -113,7 +113,13 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
-              className="pr-16"
+              className={`pr-16 ${
+                amount && (
+                  Number.isNaN(Number(amount)) ||
+                  Number(amount) <= 0 ||
+                  (selectedToken.balance && Number(amount) > selectedToken.balance)
+                ) ? 'border-red-500 focus-visible:ring-red-500' : ''
+              }`}
             />
             <button
               type="button"
@@ -126,6 +132,21 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
               MAX
             </button>
           </div>
+          {amount && Number.isNaN(Number(amount)) && (
+            <p className="text-xs text-red-500">
+              Please enter a valid number
+            </p>
+          )}
+          {amount && !Number.isNaN(Number(amount)) && Number(amount) <= 0 && (
+            <p className="text-xs text-red-500">
+              Amount must be greater than 0
+            </p>
+          )}
+          {amount && !Number.isNaN(Number(amount)) && selectedToken.balance && Number(amount) > selectedToken.balance && (
+            <p className="text-xs text-red-500">
+              Insufficient balance
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Available: {selectedToken.balance?.toFixed(2) || 0} {selectedToken.symbol}
           </p>
@@ -177,7 +198,18 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
         </div>
       </CardContent>
       <CardFooter>
-        <Button type="button" onClick={onNext} className="w-full">
+        <Button
+          type="button"
+          onClick={onNext}
+          className="w-full"
+          disabled={
+            !amount ||
+            Number.isNaN(Number(amount)) ||
+            Number(amount) <= 0 ||
+            (selectedToken.balance && Number(amount) > selectedToken.balance) ||
+            (transferType === 'direct' && !recipient)
+          }
+        >
           Continue <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </CardFooter>

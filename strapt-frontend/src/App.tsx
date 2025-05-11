@@ -39,10 +39,10 @@ const App = () => {
                   <Route index element={<Home />} />
                   <Route path="transfer" element={<Transfer />} />
                   <Route path="streams" element={<Streams />} />
+                  <Route path="savings" element={<Savings />} />
                   <Route path="pools" element={<Pools />} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="claims" element={<Claims />} />
-                  <Route path="savings" element={<Savings />} />
                   <Route path="coming-soon" element={<ComingSoon />} />
                 </Route>
               </Route>

@@ -2,13 +2,14 @@
 import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
+import InfoTooltip from '@/components/InfoTooltip';
 
 export type DurationUnit = 'seconds' | 'minutes' | 'hours' | 'days';
 
@@ -21,20 +22,20 @@ interface DurationSelectProps {
   className?: string;
 }
 
-const DurationSelect = ({ 
-  value, 
-  unit, 
-  onChange, 
-  label = "Duration", 
+const DurationSelect = ({
+  value,
+  unit,
+  onChange,
+  label = "Duration",
   id = "duration",
   className
 }: DurationSelectProps) => {
-  
+
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseInt(e.target.value) || 0;
+    const newValue = Number.parseInt(e.target.value) || 0;
     onChange(newValue, unit);
   };
-  
+
   const handleUnitChange = (newUnit: DurationUnit) => {
     onChange(value, newUnit);
   };
@@ -70,7 +71,25 @@ const DurationSelect = ({
 
   return (
     <div className={className}>
-      {label && <Label htmlFor={id}>{label}</Label>}
+      {label && (
+        <div className="flex items-center gap-2 mb-1">
+          <Label htmlFor={id}>{label}</Label>
+          <InfoTooltip
+            content={
+              <div>
+                <p className="font-medium mb-1">Stream Duration</p>
+                <p className="mb-1">Set how long the payment stream will last.</p>
+                <ul className="list-disc pl-4 text-xs space-y-1">
+                  <li>Tokens will be streamed continuously during this period</li>
+                  <li>Longer durations create slower token release rates</li>
+                  <li>Recipients can claim tokens at any time during the stream</li>
+                </ul>
+              </div>
+            }
+            iconSize={14}
+          />
+        </div>
+      )}
       <div className="flex space-x-2 mt-1.5">
         <Input
           id={id}

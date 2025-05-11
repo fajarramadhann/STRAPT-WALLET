@@ -164,9 +164,9 @@ const Savings = () => {
         <h2 className="text-xl font-semibold">Savings</h2>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'deposit' | 'withdraw' | 'goals')}>
           <TabsList className="grid grid-cols-3">
+            <TabsTrigger value="goals">Goals</TabsTrigger>
             <TabsTrigger value="deposit">Deposit</TabsTrigger>
             <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
-            <TabsTrigger value="goals">Goals</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
