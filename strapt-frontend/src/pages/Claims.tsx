@@ -260,43 +260,110 @@ const Claims = () => {
     }
   };
 
-  const handleScanSuccess = (decodedText: string) => {
+  const handleScanSuccess = async (decodedText: string) => {
+    console.log("Scanned QR code in Claims page:", decodedText);
+
     try {
-      const url = new URL(decodedText);
+      // Check if it's a URL
+      if (decodedText.startsWith('http')) {
+        const url = new URL(decodedText);
 
-      if (url.pathname.includes('/claim/')) {
-        const claimId = url.pathname.split('/claim/')[1];
-        const params = new URLSearchParams(url.search);
-        const code = params.get('code');
+        // Check if it's a claim URL with /claim/ path
+        if (url.pathname.includes('/claim/')) {
+          const claimId = url.pathname.split('/claim/')[1];
+          const params = new URLSearchParams(url.search);
+          const code = params.get('code');
 
-        if (claimId) {
-          if (code) {
-            // If we have a claim code, show the password dialog
-            setManualTransferId(claimId);
-            setManualClaimCode(code);
-            setShowPasswordDialog(true);
-          } else {
-            // Try to claim as a link transfer (no password)
-            toast.info('Checking transfer details...');
-
-            // First check if it requires a password
-            isPasswordProtected(claimId).then(requiresPassword => {
-              if (requiresPassword) {
-                // If it requires a password but none was provided, show the password dialog
-                toast.info('This transfer requires a password. Please enter it.');
-                setManualTransferId(claimId);
-                setShowPasswordDialog(true);
-              } else {
-                // If no password required, claim directly
-                toast.info('Claiming transfer without password...');
-                handleClaimLinkTransfer(claimId);
-              }
-            });
+          if (claimId) {
+            await processTransferId(claimId, code);
+            return;
           }
         }
+
+        // Check if URL contains transfer ID in query params
+        const params = new URLSearchParams(url.search);
+        const transferId = params.get('id') || params.get('transferId');
+        const claimCode = params.get('code') || params.get('claimCode');
+
+        if (transferId && transferId.startsWith('0x')) {
+          await processTransferId(transferId, claimCode);
+          return;
+        }
       }
+
+      // Check if it's a JSON string containing transfer data
+      if (decodedText.startsWith('{') && decodedText.endsWith('}')) {
+        try {
+          const jsonData = JSON.parse(decodedText);
+
+          // Check if JSON contains transfer ID
+          if (jsonData.id || jsonData.transferId) {
+            const transferId = jsonData.id || jsonData.transferId;
+            const claimCode = jsonData.code || jsonData.claimCode || jsonData.password;
+
+            if (transferId.startsWith('0x')) {
+              await processTransferId(transferId, claimCode);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing JSON from QR code:", e);
+        }
+      }
+
+      // Check if it's a transfer ID (32 bytes hex)
+      if (decodedText.startsWith('0x') && decodedText.length === 66) {
+        await processTransferId(decodedText);
+        return;
+      }
+
+      // Check if it contains a transfer ID anywhere in the text
+      const hexRegex = /0x[a-fA-F0-9]{64}/;
+      const match = decodedText.match(hexRegex);
+      if (match) {
+        const transferId = match[0];
+        await processTransferId(transferId);
+        return;
+      }
+
+      // If we get here, the format wasn't recognized
+      toast.error('Unrecognized QR code format. Please scan a valid transfer QR code.');
     } catch (e) {
+      console.error("Error processing QR code:", e);
       toast.error('Invalid QR Code. Could not parse the QR code data');
+    }
+  };
+
+  // Helper function to process a transfer ID with optional claim code
+  const processTransferId = async (transferId: string, claimCode?: string | null) => {
+    toast.info('Checking transfer details...');
+
+    try {
+      // First check if the transfer requires a password
+      const requiresPassword = await isPasswordProtected(transferId);
+      console.log('Transfer requires password:', requiresPassword);
+
+      if (requiresPassword) {
+        if (claimCode) {
+          // If we have a claim code and it requires a password, show the password dialog with pre-filled code
+          setManualTransferId(transferId);
+          setManualClaimCode(claimCode);
+          setShowPasswordDialog(true);
+          toast.info('This transfer requires a password. Please confirm to claim.');
+        } else {
+          // If it requires a password but none was provided, show the password dialog
+          setManualTransferId(transferId);
+          setShowPasswordDialog(true);
+          toast.info('This transfer requires a password. Please enter it.');
+        }
+      } else {
+        // If no password required, claim directly
+        toast.info('Claiming transfer without password...');
+        await handleClaimLinkTransfer(transferId);
+      }
+    } catch (error) {
+      console.error("Error processing transfer ID:", error);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

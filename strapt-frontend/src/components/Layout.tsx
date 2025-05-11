@@ -59,7 +59,14 @@ const Layout = () => {
           </DialogHeader>
           <QRCodeScanner
             triggerType="button"
-            onScanSuccess={() => setShowScanner(false)}
+            onScanSuccess={(result: string) => {
+              // Akan otomatis menutup dialog setelah berhasil scan
+              setShowScanner(false);
+
+              // Tidak perlu menambahkan logika khusus di sini
+              // Komponen QRCodeScanner sudah menangani semua format QR code
+              // dan akan menavigasi ke halaman yang sesuai
+            }}
           />
         </DialogContent>
       </Dialog>

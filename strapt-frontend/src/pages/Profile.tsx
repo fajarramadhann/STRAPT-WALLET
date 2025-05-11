@@ -133,6 +133,12 @@ const Profile = () => {
                 buttonSize="sm"
                 buttonText="Scan"
                 iconOnly={isMobile}
+                onScanSuccess={(result: string) => {
+                  // Komponen QRCodeScanner sudah menangani semua format QR code
+                  // dan akan menavigasi ke halaman yang sesuai
+                  console.log("Scanned QR code in Profile page:", result);
+                  // Tidak perlu menambahkan logika khusus di sini
+                }}
               />
               <Button
                 variant="outline"
