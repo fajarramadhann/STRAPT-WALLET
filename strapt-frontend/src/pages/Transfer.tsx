@@ -15,7 +15,14 @@ const TransferContent = () => {
   const [step, setStep] = useState(1);
   const [showQR, setShowQR] = useState(false);
   const { toast } = useToast();
-  const { transferType, isLoading } = useTransferContext();
+  const {
+    transferType,
+    isLoading,
+    recipient,
+    amount,
+    selectedToken,
+    withPassword
+  } = useTransferContext();
 
   const nextStep = () => {
     setStep(step + 1);
@@ -47,12 +54,14 @@ const TransferContent = () => {
     if (transferType === 'direct') {
       toast({
         title: "Transfer Successful",
-        description: "Your direct transfer has been sent",
+        description: `${amount} ${selectedToken.symbol} has been sent to ${recipient.slice(0, 6)}...${recipient.slice(-4)}`,
       });
     } else if (transferType === 'claim') {
       toast({
         title: "Transfer Created",
-        description: "Your transfer link/QR code is ready to share",
+        description: withPassword
+          ? `Password-protected transfer of ${amount} ${selectedToken.symbol} is ready to share`
+          : `Transfer of ${amount} ${selectedToken.symbol} is ready to share`,
       });
     }
 

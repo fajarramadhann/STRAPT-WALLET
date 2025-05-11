@@ -325,18 +325,37 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         const link = `${baseUrl}/app/claims?id=${result.transferId}&code=${result.claimCode}`;
         setTransferLink(link);
 
-        toast.success("Protected transfer created successfully");
+        toast.success("Transfer created successfully", {
+          description: `${amount} ${selectedToken.symbol} sent to ${recipient.slice(0, 6)}...${recipient.slice(-4)}`
+        });
 
         // Reset approval state for next transfer
         setIsApproved(false);
 
         return true;
       }
-      toast.error("Failed to create protected transfer: No transfer ID returned");
+      toast.error("Transfer failed", {
+        description: "Could not create transfer. Please try again."
+      });
       return false;
     } catch (error) {
       console.error('Error creating transfer:', error);
-      toast.error("Failed to create transfer");
+
+      // Check for specific errors
+      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+        toast.error("Transaction cancelled", {
+          description: "You cancelled the transaction"
+        });
+      } else if (error.message?.includes('insufficient funds')) {
+        toast.error("Insufficient funds", {
+          description: "You do not have enough funds to complete this transaction"
+        });
+      } else {
+        toast.error("Transfer failed", {
+          description: "Could not create transfer. Please try again."
+        });
+      }
+
       return false;
     }
   };
@@ -431,7 +450,11 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         // Set the gross amount (original amount before fee)
         setGrossAmount(amount);
 
-        toast.success(withPassword ? "Password-protected link transfer created successfully" : "Link transfer created successfully");
+        toast.success("Transfer link created", {
+          description: withPassword
+            ? `Password-protected transfer of ${amount} ${selectedToken.symbol} is ready to share`
+            : `Transfer of ${amount} ${selectedToken.symbol} is ready to share`
+        });
 
         // Reset approval state for next transfer
         setIsApproved(false);
@@ -439,11 +462,28 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         return true;
       }
 
-      toast.error("Failed to create link transfer: No transfer ID returned");
+      toast.error("Transfer link failed", {
+        description: "Could not create transfer link. Please try again."
+      });
       return false;
     } catch (error) {
       console.error('Error creating link transfer:', error);
-      toast.error("Failed to create link transfer");
+
+      // Check for specific errors
+      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+        toast.error("Transaction cancelled", {
+          description: "You cancelled the transaction"
+        });
+      } else if (error.message?.includes('insufficient funds')) {
+        toast.error("Insufficient funds", {
+          description: "You do not have enough funds to complete this transaction"
+        });
+      } else {
+        toast.error("Transfer link failed", {
+          description: "Could not create transfer link. Please try again."
+        });
+      }
+
       return false;
     }
   };
@@ -454,7 +494,30 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       return await claimTransfer(id, code);
     } catch (error) {
       console.error('Error claiming transfer:', error);
-      toast.error("Failed to claim transfer");
+
+      // Check for specific errors
+      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+        toast.error("Transaction cancelled", {
+          description: "You cancelled the claim transaction"
+        });
+      } else if (error.message?.includes('insufficient funds')) {
+        toast.error("Insufficient funds", {
+          description: "You do not have enough funds to pay for transaction fees"
+        });
+      } else if (error.message?.includes('Invalid claim code') || error.message?.includes('invalid password')) {
+        toast.error("Invalid claim code", {
+          description: "The claim code you entered is incorrect"
+        });
+      } else if (error.message?.includes('already claimed') || error.message?.includes('not claimable')) {
+        toast.error("Transfer not claimable", {
+          description: "This transfer has already been claimed or is not available"
+        });
+      } else {
+        toast.error("Claim failed", {
+          description: "Could not claim transfer. Please try again."
+        });
+      }
+
       return false;
     }
   };
@@ -466,7 +529,26 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       return await claimTransfer(id, '');
     } catch (error) {
       console.error('Error claiming link transfer:', error);
-      toast.error("Failed to claim link transfer");
+
+      // Check for specific errors
+      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+        toast.error("Transaction cancelled", {
+          description: "You cancelled the claim transaction"
+        });
+      } else if (error.message?.includes('insufficient funds')) {
+        toast.error("Insufficient funds", {
+          description: "You do not have enough funds to pay for transaction fees"
+        });
+      } else if (error.message?.includes('already claimed') || error.message?.includes('not claimable')) {
+        toast.error("Transfer not claimable", {
+          description: "This transfer has already been claimed or is not available"
+        });
+      } else {
+        toast.error("Claim failed", {
+          description: "Could not claim transfer. Please try again."
+        });
+      }
+
       return false;
     }
   };
@@ -477,7 +559,26 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       return await refundTransfer(id);
     } catch (error) {
       console.error('Error refunding transfer:', error);
-      toast.error("Failed to refund transfer");
+
+      // Check for specific errors
+      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+        toast.error("Transaction cancelled", {
+          description: "You cancelled the refund transaction"
+        });
+      } else if (error.message?.includes('insufficient funds')) {
+        toast.error("Insufficient funds", {
+          description: "You do not have enough funds to pay for transaction fees"
+        });
+      } else if (error.message?.includes('not refundable') || error.message?.includes('cannot refund')) {
+        toast.error("Transfer not refundable", {
+          description: "This transfer cannot be refunded or has already been claimed"
+        });
+      } else {
+        toast.error("Refund failed", {
+          description: "Could not refund transfer. Please try again."
+        });
+      }
+
       return false;
     }
   };

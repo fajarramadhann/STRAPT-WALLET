@@ -9,6 +9,166 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
+// Helper function to process QR code data - exported for reuse
+export const processQRCodeData = (
+  decodedText: string,
+  navigate: (to: string) => void,
+  toast: {
+    (props: { title: string; description?: string; variant?: "default" | "destructive" }): void;
+    success: (message: string) => void;
+    error: (message: string) => void;
+    info: (message: string) => void;
+  }
+): boolean => {
+  console.log("Processing QR code:", decodedText);
+
+  try {
+    // Check if it's a URL
+    if (decodedText.startsWith('http')) {
+      const url = new URL(decodedText);
+
+      // Check if it's a claim URL
+      if (url.pathname.includes('/claim/')) {
+        const claimId = url.pathname.split('/claim/')[1];
+        const params = new URLSearchParams(url.search);
+        const code = params.get('code');
+
+        if (claimId) {
+          // If we have a code parameter, include it in the URL
+          if (code) {
+            navigate(`/app/claims?id=${claimId}&code=${code}`);
+          } else {
+            navigate(`/app/claims?id=${claimId}`);
+          }
+
+          toast({
+            title: "QR Code Scanned Successfully",
+            description: "Opening the claim page",
+          });
+          return true;
+        }
+      }
+
+      // Check if URL contains transfer ID in query params
+      const params = new URLSearchParams(url.search);
+      const transferId = params.get('id') || params.get('transferId');
+      const claimCode = params.get('code') || params.get('claimCode');
+
+      if (transferId && transferId.startsWith('0x')) {
+        if (claimCode) {
+          navigate(`/app/claims?id=${transferId}&code=${claimCode}`);
+        } else {
+          navigate(`/app/claims?id=${transferId}`);
+        }
+
+        toast({
+          title: "Transfer ID Detected in URL",
+          description: "Opening the claim page",
+        });
+        return true;
+      }
+
+      // If it's just a website URL without transfer info
+      toast({
+        title: "Not a Payment Code",
+        description: "This QR code doesn't contain payment information",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Check if it's a JSON string containing transfer data
+    if (decodedText.startsWith('{') && decodedText.endsWith('}')) {
+      try {
+        const jsonData = JSON.parse(decodedText);
+
+        // Check if JSON contains transfer ID
+        if (jsonData.id || jsonData.transferId) {
+          const transferId = jsonData.id || jsonData.transferId;
+          const claimCode = jsonData.code || jsonData.claimCode || jsonData.password;
+
+          if (transferId.startsWith('0x')) {
+            if (claimCode) {
+              navigate(`/app/claims?id=${transferId}&code=${claimCode}`);
+            } else {
+              navigate(`/app/claims?id=${transferId}`);
+            }
+
+            toast({
+              title: "Transfer Data Detected",
+              description: "Opening the claim page",
+            });
+            return true;
+          }
+        }
+
+        // Check if JSON contains wallet address
+        if (jsonData.address && jsonData.address.startsWith('0x')) {
+          navigate(`/app/transfer?to=${jsonData.address}`);
+          toast({
+            title: "Wallet Address Detected",
+            description: "Opening the transfer page",
+          });
+          return true;
+        }
+      } catch (e) {
+        console.error("Error parsing JSON from QR code:", e);
+      }
+    }
+
+    // Check if it's an Ethereum address
+    if (decodedText.startsWith('0x') && decodedText.length === 42) {
+      // It's an Ethereum address, navigate to transfer page with pre-filled recipient
+      navigate(`/app/transfer?to=${decodedText}`);
+      toast({
+        title: "Wallet Address Detected",
+        description: "Opening the transfer page",
+      });
+      return true;
+    }
+
+    // Check if it's a transfer ID (32 bytes hex)
+    if (decodedText.startsWith('0x') && decodedText.length === 66) {
+      // It's likely a transfer ID, navigate to claims page
+      navigate(`/app/claims?id=${decodedText}`);
+      toast({
+        title: "Transfer ID Detected",
+        description: "Opening the claim page",
+      });
+      return true;
+    }
+
+    // Check if it contains a transfer ID anywhere in the text
+    const hexRegex = /0x[a-fA-F0-9]{64}/;
+    const match = decodedText.match(hexRegex);
+    if (match) {
+      const transferId = match[0];
+      navigate(`/app/claims?id=${transferId}`);
+      toast({
+        title: "Transfer ID Found",
+        description: "Opening the claim page",
+      });
+      return true;
+    }
+
+    // If we get here, the format wasn't recognized
+    toast({
+      title: "Unknown QR Code Format",
+      description: "This QR code format isn't recognized",
+      variant: "destructive",
+    });
+    return false;
+  } catch (e) {
+    console.error("Error processing QR code:", e);
+    toast({
+      title: "Invalid QR Code",
+      description: "This QR code format isn't recognized",
+      variant: "destructive",
+    });
+    return false;
+  }
+};
+
 interface QRCodeScannerProps {
   onScanSuccess?: (decodedText: string) => void;
   triggerType?: 'button' | 'popover' | 'dialog';
@@ -49,154 +209,15 @@ const QRCodeScanner = ({
         stopScanner();
 
         if (onScanSuccess) {
+          // Call the custom handler first
           onScanSuccess(decodedText);
+
+          // Also process with our standard handler to ensure consistent behavior
+          // across all QR code scanners in the app
+          processQRCodeData(decodedText, navigate, toast);
         } else {
-          // Default behavior: Try to extract and navigate to a claim URL
-          try {
-            console.log("Scanned QR code:", decodedText);
-
-            // Check if it's a URL
-            if (decodedText.startsWith('http')) {
-              const url = new URL(decodedText);
-
-              // Check if it's a claim URL
-              if (url.pathname.includes('/claim/')) {
-                const claimId = url.pathname.split('/claim/')[1];
-                const params = new URLSearchParams(url.search);
-                const code = params.get('code');
-
-                if (claimId) {
-                  // If we have a code parameter, include it in the URL
-                  if (code) {
-                    navigate(`/app/claims?id=${claimId}&code=${code}`);
-                  } else {
-                    navigate(`/app/claims?id=${claimId}`);
-                  }
-
-                  toast({
-                    title: "QR Code Scanned Successfully",
-                    description: "Opening the claim page",
-                  });
-                  return;
-                }
-              }
-
-              // Check if URL contains transfer ID in query params
-              const params = new URLSearchParams(url.search);
-              const transferId = params.get('id') || params.get('transferId');
-              const claimCode = params.get('code') || params.get('claimCode');
-
-              if (transferId && transferId.startsWith('0x')) {
-                if (claimCode) {
-                  navigate(`/app/claims?id=${transferId}&code=${claimCode}`);
-                } else {
-                  navigate(`/app/claims?id=${transferId}`);
-                }
-
-                toast({
-                  title: "Transfer ID Detected in URL",
-                  description: "Opening the claim page",
-                });
-                return;
-              }
-
-              // If it's just a website URL without transfer info
-              toast({
-                title: "Not a Payment Code",
-                description: "This QR code doesn't contain payment information",
-                variant: "destructive",
-              });
-              return;
-            }
-
-            // Check if it's a JSON string containing transfer data
-            if (decodedText.startsWith('{') && decodedText.endsWith('}')) {
-              try {
-                const jsonData = JSON.parse(decodedText);
-
-                // Check if JSON contains transfer ID
-                if (jsonData.id || jsonData.transferId) {
-                  const transferId = jsonData.id || jsonData.transferId;
-                  const claimCode = jsonData.code || jsonData.claimCode || jsonData.password;
-
-                  if (transferId.startsWith('0x')) {
-                    if (claimCode) {
-                      navigate(`/app/claims?id=${transferId}&code=${claimCode}`);
-                    } else {
-                      navigate(`/app/claims?id=${transferId}`);
-                    }
-
-                    toast({
-                      title: "Transfer Data Detected",
-                      description: "Opening the claim page",
-                    });
-                    return;
-                  }
-                }
-
-                // Check if JSON contains wallet address
-                if (jsonData.address && jsonData.address.startsWith('0x')) {
-                  navigate(`/app/transfer?to=${jsonData.address}`);
-                  toast({
-                    title: "Wallet Address Detected",
-                    description: "Opening the transfer page",
-                  });
-                  return;
-                }
-              } catch (e) {
-                console.error("Error parsing JSON from QR code:", e);
-              }
-            }
-
-            // Check if it's an Ethereum address
-            if (decodedText.startsWith('0x') && decodedText.length === 42) {
-              // It's an Ethereum address, navigate to transfer page with pre-filled recipient
-              navigate(`/app/transfer?to=${decodedText}`);
-              toast({
-                title: "Wallet Address Detected",
-                description: "Opening the transfer page",
-              });
-              return;
-            }
-
-            // Check if it's a transfer ID (32 bytes hex)
-            if (decodedText.startsWith('0x') && decodedText.length === 66) {
-              // It's likely a transfer ID, navigate to claims page
-              navigate(`/app/claims?id=${decodedText}`);
-              toast({
-                title: "Transfer ID Detected",
-                description: "Opening the claim page",
-              });
-              return;
-            }
-
-            // Check if it contains a transfer ID anywhere in the text
-            const hexRegex = /0x[a-fA-F0-9]{64}/;
-            const match = decodedText.match(hexRegex);
-            if (match) {
-              const transferId = match[0];
-              navigate(`/app/claims?id=${transferId}`);
-              toast({
-                title: "Transfer ID Found",
-                description: "Opening the claim page",
-              });
-              return;
-            }
-
-            // If we get here, the format wasn't recognized
-            toast({
-              title: "Unknown QR Code Format",
-              description: "This QR code format isn't recognized",
-              variant: "destructive",
-            });
-          } catch (e) {
-            console.error("Error parsing QR code:", e);
-            toast({
-              title: "Invalid QR Code",
-              description: "This QR code format isn't recognized",
-              variant: "destructive",
-            });
-          }
+          // Use the standard processing function
+          processQRCodeData(decodedText, navigate, toast);
         }
 
         setScannerOpen(false);

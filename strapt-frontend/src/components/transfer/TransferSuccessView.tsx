@@ -28,7 +28,7 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
   const handleCopyLink = () => {
     navigator.clipboard.writeText(transferLink);
     toast.success("Link Copied", {
-      description: "Transfer link copied to clipboard",
+      description: "Transfer link copied to clipboard. Share it with the recipient."
     });
   };
 
@@ -36,7 +36,7 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
     if (claimCode) {
       navigator.clipboard.writeText(claimCode);
       toast.success("Claim Code Copied", {
-        description: "Claim code copied to clipboard",
+        description: "Claim code copied to clipboard. Keep it secure and share only with the recipient."
       });
     }
   };
@@ -45,7 +45,7 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
     if (transferId) {
       navigator.clipboard.writeText(transferId);
       toast.success("Transfer ID Copied", {
-        description: "Transfer ID copied to clipboard",
+        description: "Transfer ID copied to clipboard. The recipient will need this to claim the funds."
       });
     }
   };

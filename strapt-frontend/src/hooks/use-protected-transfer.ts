@@ -4,7 +4,7 @@
  * This hook works with the old ProtectedTransfer contract which has been replaced by ProtectedTransferV2.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, parseUnits, formatUnits, keccak256, toBytes, encodeFunctionData } from 'viem';
 import { toast } from 'sonner';
@@ -429,13 +429,43 @@ export function useProtectedTransfer() {
             error.message.includes('cancelled') ||
             error.message.includes('canceled')
           )) {
+          toast.error('Transaction cancelled', {
+            description: 'You cancelled the transaction'
+          });
           throw new Error('Transaction was rejected by the user');
         }
+
+        // Check for common errors
+        if (error.message && error.message.includes('insufficient funds')) {
+          toast.error('Insufficient funds', {
+            description: 'You do not have enough funds to complete this transaction'
+          });
+          throw new Error('Insufficient funds for transaction');
+        }
+
+        if (error.message && error.message.includes('gas required exceeds allowance')) {
+          toast.error('Gas limit exceeded', {
+            description: 'The transaction requires more gas than allowed'
+          });
+          throw new Error('Gas limit exceeded for transaction');
+        }
+
         throw new Error(`Failed to create link transfer: ${error instanceof Error ? error.message : String(error)}`);
       }
     } catch (error) {
       console.error('Error creating link transfer:', error);
-      toast.error('Failed to create link transfer');
+
+      // Only show generic error if not already handled
+      if (!error.message || (
+          !error.message.includes('rejected by the user') &&
+          !error.message.includes('Insufficient funds') &&
+          !error.message.includes('Gas limit exceeded')
+        )) {
+        toast.error('Transfer failed', {
+          description: 'Could not create transfer. Please try again.'
+        });
+      }
+
       throw error;
     } finally {
       setIsLoading(false);
@@ -492,13 +522,61 @@ export function useProtectedTransfer() {
             error.message.includes('cancelled') ||
             error.message.includes('canceled')
           )) {
+          toast.error('Transaction cancelled', {
+            description: 'You cancelled the claim transaction'
+          });
           throw new Error('Transaction was rejected by the user');
         }
+
+        // Check for common errors
+        if (error.message?.includes('insufficient funds')) {
+          toast.error('Insufficient funds', {
+            description: 'You do not have enough funds to pay for transaction fees'
+          });
+          throw new Error('Insufficient funds for transaction');
+        }
+
+        if (error.message?.includes('gas required exceeds allowance')) {
+          toast.error('Gas limit exceeded', {
+            description: 'The transaction requires more gas than allowed'
+          });
+          throw new Error('Gas limit exceeded for transaction');
+        }
+
+        // Check for invalid claim code
+        if (error.message?.includes('Invalid claim code') || error.message?.includes('invalid password')) {
+          toast.error('Invalid claim code', {
+            description: 'The claim code you entered is incorrect'
+          });
+          throw new Error('Invalid claim code provided');
+        }
+
+        // Check for already claimed
+        if (error.message?.includes('already claimed') || error.message?.includes('not claimable')) {
+          toast.error('Transfer not claimable', {
+            description: 'This transfer has already been claimed or is not available'
+          });
+          throw new Error('Transfer not claimable');
+        }
+
         throw new Error(`Failed to claim transfer: ${error instanceof Error ? error.message : String(error)}`);
       }
     } catch (error) {
       console.error('Error claiming transfer:', error);
-      toast.error('Failed to claim transfer');
+
+      // Only show generic error if not already handled
+      if (!error.message || (
+          !error.message.includes('rejected by the user') &&
+          !error.message.includes('Insufficient funds') &&
+          !error.message.includes('Gas limit exceeded') &&
+          !error.message.includes('Invalid claim code') &&
+          !error.message.includes('Transfer not claimable')
+        )) {
+        toast.error('Claim failed', {
+          description: 'Could not claim transfer. Please try again.'
+        });
+      }
+
       throw error;
     } finally {
       setIsLoading(false);

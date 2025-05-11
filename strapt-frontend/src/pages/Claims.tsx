@@ -194,17 +194,56 @@ const Claims = () => {
       const success = await claimTransfer(transferId, '');
 
       if (success) {
-        toast.success('Transfer claimed successfully!');
+        // Get transfer details to show in success message
+        try {
+          const details = await getTransferDetails(transferId);
+          if (details) {
+            toast.success('Transfer claimed successfully!', {
+              description: `You have received ${details.amount} ${details.tokenSymbol}`
+            });
+          } else {
+            toast.success('Transfer claimed successfully!');
+          }
+        } catch (e) {
+          // Fallback if we can't get details
+          toast.success('Transfer claimed successfully!');
+        }
+
         // Refresh the list of pending claims
         // fetchPendingClaims();
         return true;
       }
 
-      toast.error('Failed to claim transfer. Please check the transfer ID.');
+      toast.error('Claim failed', {
+        description: 'Could not claim transfer. Please check the transfer ID and try again.'
+      });
       return false;
     } catch (error) {
       console.error('Error claiming link transfer:', error);
-      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      // Check for specific errors
+      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+        toast.error("Transaction cancelled", {
+          description: "You cancelled the claim transaction"
+        });
+      } else if (error.message?.includes('insufficient funds')) {
+        toast.error("Insufficient funds", {
+          description: "You do not have enough funds to pay for transaction fees"
+        });
+      } else if (error.message?.includes('Invalid claim code') || error.message?.includes('invalid password')) {
+        toast.error("Invalid claim code", {
+          description: "The claim code you entered is incorrect"
+        });
+      } else if (error.message?.includes('already claimed') || error.message?.includes('not claimable')) {
+        toast.error("Transfer not claimable", {
+          description: "This transfer has already been claimed or is not available"
+        });
+      } else {
+        toast.error("Claim failed", {
+          description: "Could not claim transfer. Please try again."
+        });
+      }
+
       return false;
     } finally {
       setIsLoading(false);
@@ -248,12 +287,38 @@ const Claims = () => {
         // For transfers without password protection, we can claim directly with empty password
         const success = await claimTransfer(manualTransferId, '');
         if (success) {
-          toast.success('Transfer claimed successfully!');
+          // Get transfer details to show in success message
+          try {
+            const details = await getTransferDetails(manualTransferId);
+            if (details) {
+              toast.success('Transfer claimed successfully!', {
+                description: `You have received ${details.amount} ${details.tokenSymbol}`
+              });
+            } else {
+              toast.success('Transfer claimed successfully!');
+            }
+          } catch (e) {
+            // Fallback if we can't get details
+            toast.success('Transfer claimed successfully!');
+          }
+
           setShowPasswordDialog(false);
         }
       } catch (error) {
         console.error('Error claiming transfer:', error);
-        setPasswordError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+        // Check for specific errors
+        if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+          setPasswordError('Transaction cancelled. You cancelled the claim transaction.');
+        } else if (error.message?.includes('insufficient funds')) {
+          setPasswordError('Insufficient funds. You do not have enough funds to pay for transaction fees.');
+        } else if (error.message?.includes('Invalid claim code') || error.message?.includes('invalid password')) {
+          setPasswordError('Invalid claim code. The claim code you entered is incorrect.');
+        } else if (error.message?.includes('already claimed') || error.message?.includes('not claimable')) {
+          setPasswordError('Transfer not claimable. This transfer has already been claimed or is not available.');
+        } else {
+          setPasswordError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
       } finally {
         setIsValidating(false);
       }
@@ -363,7 +428,25 @@ const Claims = () => {
       }
     } catch (error) {
       console.error("Error processing transfer ID:", error);
-      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      // Check for specific errors
+      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+        toast.error("Transaction cancelled", {
+          description: "You cancelled the transaction"
+        });
+      } else if (error.message?.includes('insufficient funds')) {
+        toast.error("Insufficient funds", {
+          description: "You do not have enough funds to pay for transaction fees"
+        });
+      } else if (error.message?.includes('not found') || error.message?.includes('does not exist')) {
+        toast.error("Transfer not found", {
+          description: "The transfer ID you entered does not exist"
+        });
+      } else {
+        toast.error("Error processing transfer", {
+          description: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     }
   };
 

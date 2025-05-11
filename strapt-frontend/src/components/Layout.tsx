@@ -63,9 +63,12 @@ const Layout = () => {
               // Akan otomatis menutup dialog setelah berhasil scan
               setShowScanner(false);
 
-              // Tidak perlu menambahkan logika khusus di sini
-              // Komponen QRCodeScanner sudah menangani semua format QR code
-              // dan akan menavigasi ke halaman yang sesuai
+              // Tidak perlu menambahkan logika khusus di sini karena
+              // QRCodeScanner sudah menangani navigasi ke halaman yang sesuai
+              // Namun kita perlu memastikan bahwa QR code scanner di sini
+              // menggunakan logika yang sama dengan di halaman Claims
+
+              console.log("Scanned QR code in floating button:", result);
             }}
           />
         </DialogContent>

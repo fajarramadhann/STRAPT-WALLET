@@ -293,38 +293,9 @@ const Home = () => {
               <QRCodeScanner
                 buttonVariant="outline"
                 buttonText="Scan QR Code to Claim"
-                onScanSuccess={(result: string) => {
-                  // Check if it's a URL with a claim ID
-                  if (result.startsWith('http') && result.includes('/claim/')) {
-                    try {
-                      const url = new URL(result);
-                      const claimId = url.pathname.split('/claim/')[1];
-                      const params = new URLSearchParams(url.search);
-                      const code = params.get('code');
-
-                      if (claimId) {
-                        // Navigate to claims page with the ID and code (if available)
-                        if (code) {
-                          navigate(`/app/claims?id=${claimId}&code=${code}`);
-                        } else {
-                          navigate(`/app/claims?id=${claimId}`);
-                        }
-                        toast.success("QR code scanned successfully. Opening claim page.");
-                      }
-                    } catch (e) {
-                      toast.error("Invalid QR code format");
-                    }
-                  }
-                  // Check if it's a transfer ID directly
-                  else if (result.startsWith('0x') && result.length === 66) {
-                    navigate(`/app/claims?id=${result}`);
-                    toast.success("Transfer ID detected. Opening claim page.");
-                  }
-                  // If it's not a recognized format
-                  else {
-                    toast.error("Unrecognized QR code format");
-                  }
-                }}
+                // Tidak perlu menambahkan onScanSuccess di sini
+                // Komponen QRCodeScanner sudah menangani semua format QR code
+                // dan akan menavigasi ke halaman yang sesuai
               />
             </div>
           </div>
