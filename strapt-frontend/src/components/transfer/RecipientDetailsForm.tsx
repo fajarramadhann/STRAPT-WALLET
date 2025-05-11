@@ -1,5 +1,5 @@
 
-import { Shield, Send, Share2 } from 'lucide-react';
+import { Shield, Send, Share2, Scan } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label";
 import TokenSelect from '@/components/TokenSelect';
 import { ArrowRight } from 'lucide-react';
 import { useTransferContext } from '@/contexts/TransferContext';
+import QRCodeScanner from '@/components/QRCodeScanner';
+import { useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 
 interface RecipientDetailsFormProps {
   onNext: () => void;
@@ -19,13 +22,25 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
     setRecipient,
     amount,
     setAmount,
-    note,
-    setNote,
     selectedToken,
     setSelectedToken,
     transferType,
     setTransferType,
   } = useTransferContext();
+
+  const location = useLocation();
+
+  // Check for recipient in URL query parameters (from QR code scanning)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const toAddress = params.get('to');
+
+    if (toAddress && toAddress.startsWith('0x')) {
+      setRecipient(toAddress);
+      // Automatically set to direct transfer when an address is provided
+      setTransferType('direct');
+    }
+  }, [location.search, setRecipient, setTransferType]);
 
   return (
     <Card>
@@ -40,15 +55,32 @@ const RecipientDetailsForm = ({ onNext }: RecipientDetailsFormProps) => {
           <label htmlFor="recipient" className="text-sm font-medium">
             Recipient {transferType === 'direct' ? '(Required)' : '(Optional for Link/QR)'}
           </label>
-          <Input
-            id="recipient"
-            placeholder={transferType === 'direct'
-              ? "@username or wallet address 0x..."
-              : "Optional for Link/QR transfers"}
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            required={transferType === 'direct'}
-          />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                id="recipient"
+                placeholder={transferType === 'direct'
+                  ? "@username or wallet address 0x..."
+                  : "Optional for Link/QR transfers"}
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                required={transferType === 'direct'}
+              />
+            </div>
+            <QRCodeScanner
+              buttonVariant="outline"
+              buttonSize="icon"
+              iconOnly={true}
+              onScanSuccess={(result) => {
+                // Check if it's an Ethereum address
+                if (result.startsWith('0x') && result.length === 42) {
+                  setRecipient(result);
+                  // Set to direct transfer when scanning an address
+                  setTransferType('direct');
+                }
+              }}
+            />
+          </div>
           {transferType === 'claim' && (
             <p className="text-xs text-muted-foreground">
               For Link/QR transfers, recipient is optional as anyone with the link can claim the funds.

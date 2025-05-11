@@ -5,6 +5,7 @@ import {
   BarChart2,
   QrCode,
   UserPlus,
+  Copy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import QuickAction from "@/components/QuickAction";
@@ -22,6 +23,7 @@ import { useState, useEffect } from "react";
 import UsernameRegistration from "@/components/UsernameRegistration";
 import ReceivedStats from "@/components/ReceivedStats";
 import QRCode from "@/components/QRCode";
+import QRCodeScanner from "@/components/QRCodeScanner";
 import { useXellarWallet } from "@/hooks/use-xellar-wallet";
 import { useTokenBalances } from "@/hooks/use-token-balances";
 import { useChainId, useConfig } from "wagmi";
@@ -275,19 +277,56 @@ const Home = () => {
             <p className="text-xs text-muted-foreground">
               {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
             </p>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                if (address) {
-                  navigator.clipboard.writeText(address);
-                  toast.success("Address copied to clipboard");
-                }
-              }}
-              disabled={!address}
-            >
-              Copy Address
-            </Button>
+            <div className="flex flex-col w-full gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (address) {
+                    navigator.clipboard.writeText(address);
+                    toast.success("Address copied to clipboard");
+                  }
+                }}
+                disabled={!address}
+              >
+                <Copy className="h-4 w-4 mr-1" /> Copy Address
+              </Button>
+              <QRCodeScanner
+                buttonVariant="outline"
+                buttonText="Scan QR Code to Claim"
+                onScanSuccess={(result: string) => {
+                  // Check if it's a URL with a claim ID
+                  if (result.startsWith('http') && result.includes('/claim/')) {
+                    try {
+                      const url = new URL(result);
+                      const claimId = url.pathname.split('/claim/')[1];
+                      const params = new URLSearchParams(url.search);
+                      const code = params.get('code');
+
+                      if (claimId) {
+                        // Navigate to claims page with the ID and code (if available)
+                        if (code) {
+                          navigate(`/app/claims?id=${claimId}&code=${code}`);
+                        } else {
+                          navigate(`/app/claims?id=${claimId}`);
+                        }
+                        toast.success("QR code scanned successfully. Opening claim page.");
+                      }
+                    } catch (e) {
+                      toast.error("Invalid QR code format");
+                    }
+                  }
+                  // Check if it's a transfer ID directly
+                  else if (result.startsWith('0x') && result.length === 66) {
+                    navigate(`/app/claims?id=${result}`);
+                    toast.success("Transfer ID detected. Opening claim page.");
+                  }
+                  // If it's not a recognized format
+                  else {
+                    toast.error("Unrecognized QR code format");
+                  }
+                }}
+              />
+            </div>
           </div>
         </DialogContent>
       </Dialog>

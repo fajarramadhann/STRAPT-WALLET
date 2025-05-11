@@ -33,7 +33,7 @@ const QRCodeScanner = ({
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const html5QrCode = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'html5-qrcode-scanner';
 
@@ -43,36 +43,74 @@ const QRCodeScanner = ({
     }
 
     setIsScanning(true);
-    
+
     try {
       const qrCodeSuccessCallback = (decodedText: string) => {
         stopScanner();
-        
+
         if (onScanSuccess) {
           onScanSuccess(decodedText);
         } else {
           // Default behavior: Try to extract and navigate to a claim URL
           try {
-            const url = new URL(decodedText);
-            
-            if (url.pathname.includes('/claim/')) {
-              const claimId = url.pathname.split('/claim/')[1];
-              
-              if (claimId) {
-                navigate(`/app/claims?id=${claimId}`);
+            // Check if it's a URL
+            if (decodedText.startsWith('http')) {
+              const url = new URL(decodedText);
+
+              // Check if it's a claim URL
+              if (url.pathname.includes('/claim/')) {
+                const claimId = url.pathname.split('/claim/')[1];
+                const params = new URLSearchParams(url.search);
+                const code = params.get('code');
+
+                if (claimId) {
+                  // If we have a code parameter, include it in the URL
+                  if (code) {
+                    navigate(`/app/claims?id=${claimId}&code=${code}`);
+                  } else {
+                    navigate(`/app/claims?id=${claimId}`);
+                  }
+
+                  toast({
+                    title: "QR Code Scanned Successfully",
+                    description: "Opening the claim page",
+                  });
+                }
+              } else {
                 toast({
-                  title: "QR Code Scanned Successfully",
-                  description: "Opening the payment page",
+                  title: "Not a Payment Code",
+                  description: "This QR code doesn't contain payment information",
+                  variant: "destructive",
                 });
               }
-            } else {
+            }
+            // Check if it's an Ethereum address
+            else if (decodedText.startsWith('0x') && decodedText.length === 42) {
+              // It's an Ethereum address, navigate to transfer page with pre-filled recipient
+              navigate(`/app/transfer?to=${decodedText}`);
               toast({
-                title: "Not a Payment Code",
-                description: "This QR code doesn't contain payment information",
+                title: "Wallet Address Detected",
+                description: "Opening the transfer page",
+              });
+            }
+            // Check if it's a transfer ID (32 bytes hex)
+            else if (decodedText.startsWith('0x') && decodedText.length === 66) {
+              // It's likely a transfer ID, navigate to claims page
+              navigate(`/app/claims?id=${decodedText}`);
+              toast({
+                title: "Transfer ID Detected",
+                description: "Opening the claim page",
+              });
+            }
+            else {
+              toast({
+                title: "Unknown QR Code Format",
+                description: "This QR code format isn't recognized",
                 variant: "destructive",
               });
             }
           } catch (e) {
+            console.error("Error parsing QR code:", e);
             toast({
               title: "Invalid QR Code",
               description: "This QR code format isn't recognized",
@@ -80,12 +118,12 @@ const QRCodeScanner = ({
             });
           }
         }
-        
+
         setScannerOpen(false);
       };
-      
+
       const config = { fps: 10, qrbox: isMobile ? 250 : 300 };
-      
+
       await html5QrCode.current.start(
         { facingMode: "environment" },
         config,
@@ -102,7 +140,7 @@ const QRCodeScanner = ({
       });
     }
   };
-  
+
   const stopScanner = () => {
     if (html5QrCode.current && html5QrCode.current.isScanning) {
       html5QrCode.current.stop()
@@ -110,7 +148,7 @@ const QRCodeScanner = ({
         .finally(() => setIsScanning(false));
     }
   };
-  
+
   const handleOpenChange = (open: boolean) => {
     setScannerOpen(open);
     if (!open && isScanning) {
@@ -120,7 +158,7 @@ const QRCodeScanner = ({
       setTimeout(() => startScanner(), 500);
     }
   };
-  
+
   // Cleanup scanner on unmount
   useEffect(() => {
     return () => {
@@ -138,9 +176,9 @@ const QRCodeScanner = ({
       <p className="text-sm text-muted-foreground mt-4 mb-2">
         Point your camera at a QR code to scan it
       </p>
-      <Button 
-        variant="outline" 
-        size="sm" 
+      <Button
+        variant="outline"
+        size="sm"
         onClick={() => handleOpenChange(false)}
         className="mt-2"
       >
@@ -150,9 +188,9 @@ const QRCodeScanner = ({
   );
 
   const triggerButton = (
-    <Button 
-      variant={buttonVariant} 
-      size={buttonSize} 
+    <Button
+      variant={buttonVariant}
+      size={buttonSize}
       className={buttonClassName}
       onClick={triggerType === 'button' ? () => handleOpenChange(true) : undefined}
     >
