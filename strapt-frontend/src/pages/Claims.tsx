@@ -257,9 +257,8 @@ const Claims = () => {
 
   const handleCopyLink = (transferId: string) => {
     navigator.clipboard.writeText(`https://truststream.app/claim/${transferId}`);
-    toast({
-      title: "Link Copied",
-      description: "Transfer link copied to clipboard",
+    toast.success("Link Copied", {
+      description: "Transfer link copied to clipboard"
     });
   };
 
@@ -350,7 +349,7 @@ const Claims = () => {
         const transferId = params.get('id') || params.get('transferId');
         const claimCode = params.get('code') || params.get('claimCode');
 
-        if (transferId && transferId.startsWith('0x')) {
+        if (transferId?.startsWith('0x')) {
           await processTransferId(transferId, claimCode);
           return;
         }
@@ -366,7 +365,7 @@ const Claims = () => {
             const transferId = jsonData.id || jsonData.transferId;
             const claimCode = jsonData.code || jsonData.claimCode || jsonData.password;
 
-            if (transferId.startsWith('0x')) {
+            if (transferId?.startsWith('0x')) {
               await processTransferId(transferId, claimCode);
               return;
             }

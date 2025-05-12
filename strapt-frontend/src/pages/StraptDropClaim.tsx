@@ -1,632 +1,641 @@
-import { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useXellarWallet } from '@/hooks/use-xellar-wallet';
-import { useStraptDrop, type DropInfo } from '@/hooks/use-strapt-drop';
+import { useStraptDrop } from '@/hooks/use-strapt-drop';
+import type { DropInfo } from '@/hooks/use-strapt-drop';
 import { Loading } from '@/components/ui/loading';
-import { Gift, Clock, Users, Check, AlertTriangle, PartyPopper } from 'lucide-react';
+import { Gift, Clock, Users, AlertTriangle, Check, Shuffle, Coins, PartyPopper, QrCode, ChevronLeft } from 'lucide-react';
+import { formatUnits } from 'viem';
+import contractConfig from '@/contracts/contract-config.json';
+import QRCodeScanner from '@/components/QRCodeScanner';
+import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
 const StraptDropClaim = () => {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const { isConnected, address, connectWallet } = useXellarWallet();
-  const { getDropInfo, claimDrop, hasAddressClaimed, getClaimedAmount, checkDropExists, isLoading } = useStraptDrop();
+  const { isConnected, address } = useXellarWallet();
+  const { getDropInfo, claimDrop, hasAddressClaimed, isLoading, isClaiming } = useStraptDrop();
 
+  // State
   const [dropId, setDropId] = useState<string | null>(null);
   const [dropInfo, setDropInfo] = useState<DropInfo | null>(null);
-  const [isLoadingInfo, setIsLoadingInfo] = useState(true);
-  const [hasClaimed, setHasClaimed] = useState(false);
-  const [claimedAmount, setClaimedAmount] = useState('0');
-  const [tokenSymbol, setTokenSymbol] = useState('IDRX');
-  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [hasClaimed, setHasClaimed] = useState<boolean>(false);
+  const [isLoadingDrop, setIsLoadingDrop] = useState<boolean>(false);
+  const [showScanner, setShowScanner] = useState<boolean>(false);
+  const [tokenSymbol, setTokenSymbol] = useState<string>('Token');
+  const [tokenDecimals, setTokenDecimals] = useState<number>(18);
+  const [claimAmount, setClaimAmount] = useState<bigint | null>(null);
 
-  // Use ref to track if we've already checked claim status for this address
-  const claimCheckedForAddress = useRef<string | null>(null);
-
-  // Parse dropId from URL query parameters
+  // Parse drop ID from URL query params
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const id = params.get('id');
-
-    // Log the raw ID from URL for debugging
-    console.log('Raw dropId from URL:', id);
-
-    // Validate dropId format
-    if (id && id?.startsWith('0x') && id?.length === 66) {
-      console.log('Valid dropId format detected:', id);
-
-      // Check if this might be a transaction hash
-      const lastTxHash = localStorage.getItem('last_tx_hash');
-      if (lastTxHash && lastTxHash === id) {
-        console.warn('Warning: dropId matches last transaction hash, this might not be a valid dropId');
-      }
-
+    if (id) {
       setDropId(id);
-
-      // Verify that the dropId exists in the contract
-      const verifyDropId = async () => {
-        try {
-          const exists = await checkDropExists(id);
-          if (!exists) {
-            console.warn('Drop does not exist in contract:', id);
-            toast({
-              title: "Drop Not Found",
-              description: "This STRAPT Drop does not exist or has expired",
-              variant: "destructive"
-            });
-            navigate('/app');
-          } else {
-            console.log('Drop exists in contract:', id);
-          }
-        } catch (error) {
-          console.error('Error verifying dropId:', error);
-          // Continue anyway, we'll let the normal flow handle errors
-        }
-      };
-
-      verifyDropId();
-    } else {
-      console.error('Invalid dropId format:', id);
-      toast({
-        title: "Invalid Link",
-        description: "This STRAPT Drop link is invalid or malformed",
-        variant: "destructive"
-      });
-      navigate('/app');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search, navigate, toast]);
+  }, [location]);
 
-  // Circuit breaker to prevent too many requests
-  const [circuitBroken, setCircuitBroken] = useState(false);
-
-  // State to track if drop is expired or fully claimed to prevent further requests
-  const [dropStatus, setDropStatus] = useState<'loading' | 'expired' | 'claimed' | 'active' | 'not_found'>('loading');
-
-  // Use a ref to track if we've already fetched the drop info
-  const dropInfoFetched = useRef(false);
-
-  // Fetch drop info only once on initial load
+  // Load drop info when ID is available
   useEffect(() => {
-    // Only fetch if we have a dropId and haven't fetched yet
-    if (!dropId || dropInfoFetched.current) return;
-
-    // If we already know the drop is expired or all claims are taken, don't make any more requests
-    if (dropStatus === 'expired' || dropStatus === 'claimed') {
-      setIsLoadingInfo(false);
-      return;
+    if (dropId && isConnected) {
+      loadDropInfo();
     }
+  }, [dropId, isConnected]);
 
-    // If circuit breaker is triggered, don't make any more requests
-    if (circuitBroken) {
-      setIsLoadingInfo(false);
-      return;
-    }
-
-    // Flag to track if the component is still mounted
-    let isMounted = true;
-
-    const fetchDropInfo = async () => {
-      if (!dropId) return;
-
-      try {
-        setIsLoadingInfo(true);
-
-        // Mark that we've attempted to fetch the drop info
-        dropInfoFetched.current = true;
-
-        // First, try to get the drop info
-        const info = await getDropInfo(dropId);
-
-        // Check if component is still mounted before updating state
-        if (!isMounted) return;
-
-        // If info is undefined, it means the drop doesn't exist
-        if (!info) {
-          console.log('Drop not found or does not exist');
-          setDropStatus('not_found');
-          toast({
-            title: "Drop Not Found",
-            description: "This STRAPT Drop does not exist or has expired",
-            variant: "destructive"
-          });
-          navigate('/app');
-          return;
-        }
-
-        // Check if drop is expired immediately
-        const nowInSeconds = Math.floor(Date.now() / 1000);
-
-        // Only fix expiryTime if it's invalid, but keep other data as is
-        const modifiedInfo = { ...info };
-        let needsModification = false;
-
-        // Check if expiryTime is valid (greater than 0)
-        if (info.expiryTime <= 0) {
-          console.error('Invalid expiryTime detected in fetchDropInfo:', info.expiryTime);
-          // For drops with expiryTime = 0, we'll set it to 24 hours from creation
-          modifiedInfo.expiryTime = Math.floor(Date.now() / 1000) + 86400; // Current time + 24 hours in seconds
-          console.log('Modified expiryTime:', modifiedInfo.expiryTime);
-          needsModification = true;
-        }
-
-          // Get token symbol based on hardcoded token addresses
-          try {
-            // Hardcoded token addresses for IDRX and USDC
-            const IDRX_ADDRESS = "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661";
-            const USDC_ADDRESS = "0x72db95F0716cF79C0efe160F23fB17bF1c161317";
-
-            // Safely get token address, handling null/undefined cases
-            const dropTokenAddress = info.tokenAddress ? info.tokenAddress.toLowerCase() : '';
-
-            // Log the token address for debugging
-            console.log('Drop token address:', dropTokenAddress || 'empty');
-
-            // Force USDC for this specific case since we know it's USDC
-            if (dropTokenAddress === USDC_ADDRESS.toLowerCase()) {
-              console.log('Token identified as USDC');
-              setTokenSymbol('USDC');
-            }
-            // Check if the token address matches IDRX
-            else if (dropTokenAddress === IDRX_ADDRESS.toLowerCase()) {
-              console.log('Token identified as IDRX');
-              setTokenSymbol('IDRX');
-            }
-            // Handle any other case - default to USDC since that's what we know is being used
-            else {
-              console.log('Using default token (USDC) for address:', info.tokenAddress);
-              setTokenSymbol('USDC');
-            }
-          } catch (error) {
-            console.error('Error determining token symbol:', error);
-            // Default to USDC if there's an error since that's what we know is being used
-            setTokenSymbol('USDC');
-          }
-
-          // Log warnings for other invalid data but don't modify them
-          if (info.totalRecipients <= 0) {
-            console.warn('Warning: totalRecipients is 0 or negative:', info.totalRecipients);
-          }
-
-          if (info.totalAmount === '0' || info.totalAmount === '0.00') {
-            console.warn('Warning: totalAmount is 0:', info.totalAmount);
-          }
-
-          // If we modified expiryTime, use the modified info
-          if (needsModification) {
-            setDropInfo(modifiedInfo);
-            setDropStatus('active');
-            setIsLoadingInfo(false);
-            return;
-          }
-
-          const isExpired = info.expiryTime < nowInSeconds;
-
-          // Log the values for debugging
-          console.log('Drop expiryTime in fetchDropInfo:', info.expiryTime);
-          console.log('Current time (seconds) in fetchDropInfo:', nowInSeconds);
-          console.log('Is expired in fetchDropInfo:', isExpired);
-
-          setDropInfo(info);
-
-          // If drop is expired, we can skip checking claim status and prevent further requests
-          if (isExpired) {
-            console.log('Drop is expired, skipping claim status check');
-            setDropStatus('expired');
-            setIsLoadingInfo(false);
-            return;
-          }
-
-          // Check if all claims are taken
-          // If totalRecipients is 0 or less, consider it as not all claims taken
-          const allClaimsTaken = info.totalRecipients <= 0 ? false : info.claimedCount >= info.totalRecipients;
-          if (allClaimsTaken) {
-            console.log('All claims taken, skipping claim status check');
-            setDropStatus('claimed');
-            setIsLoadingInfo(false);
-            return;
-          }
-
-          // Drop is active, set status
-          setDropStatus('active');
-
-          // Claim status will be checked in the separate effect that watches for address changes
-      } catch (error) {
-        console.error('Error fetching drop info:', error);
-
-        // Check if component is still mounted before updating state
-        if (!isMounted) return;
-
-        // Check for specific errors
-        if (error instanceof Error) {
-          if (error.message.includes('too many requests') ||
-              error.message.includes('rate limit') ||
-              error.message.includes('429')) {
-
-            // Trigger circuit breaker to prevent more requests
-            setCircuitBroken(true);
-
-            toast({
-              title: "Rate Limit Exceeded",
-              description: "Too many requests to the blockchain. Please try again later.",
-              variant: "destructive"
-            });
-
-            // After 5 minutes, reset the circuit breaker
-            setTimeout(() => {
-              setCircuitBroken(false);
-            }, 300000); // 5 minutes
-          } else if (error.message.includes('DropNotFound')) {
-            setDropStatus('not_found');
-            toast({
-              title: "Drop Not Found",
-              description: "This STRAPT Drop does not exist",
-              variant: "destructive"
-            });
-          } else {
-            toast({
-              title: "Error",
-              description: "Failed to load STRAPT Drop information",
-              variant: "destructive"
-            });
-          }
-        } else {
-          toast({
-            title: "Error",
-            description: "Failed to load STRAPT Drop information",
-            variant: "destructive"
-          });
-        }
-
-        navigate('/app');
-      } finally {
-        if (isMounted) {
-          setIsLoadingInfo(false);
-        }
-      }
-    };
-
-    fetchDropInfo();
-
-    // Cleanup function to prevent state updates after unmount
-    return () => {
-      isMounted = false;
-    };
-  // This effect only needs to run once when the dropId is available
-  }, [dropId, dropStatus, circuitBroken, getDropInfo, navigate, toast]);
-
-  // Separate effect to handle address changes for claim status checks
-  useEffect(() => {
-    // Only check claim status if we have a dropId, an address, and the drop is active
-    if (!dropId || !address || dropStatus !== 'active' || !dropInfo) return;
-
-    // Skip if we've already checked this address
-    if (claimCheckedForAddress.current === address) return;
-
-    // Skip if circuit breaker is triggered
-    if (circuitBroken) return;
-
-    const checkClaimStatus = async () => {
-      try {
-        console.log('Checking claim status for new address:', address);
-        // Mark this address as checked to prevent duplicate requests
-        claimCheckedForAddress.current = address;
-
-        // Check if the user has claimed
-        const claimed = await hasAddressClaimed(dropId, address);
-
-        if (claimed) {
-          setHasClaimed(true);
-
-          // Only get claimed amount if we know the user has claimed
-          const amount = await getClaimedAmount(dropId, address);
-          if (amount && amount !== '0') {
-            setClaimedAmount(amount);
-          }
-        }
-      } catch (error) {
-        console.error('Error checking claim status for new address:', error);
-
-        // Check for specific errors
-        if (error instanceof Error) {
-          if (error.message.includes('too many requests') ||
-              error.message.includes('rate limit') ||
-              error.message.includes('429')) {
-
-            // Trigger circuit breaker to prevent more requests
-            setCircuitBroken(true);
-
-            // After 5 minutes, reset the circuit breaker
-            setTimeout(() => {
-              setCircuitBroken(false);
-            }, 300000); // 5 minutes
-
-            console.log('Rate limited during claim status check, continuing with available data');
-          } else if (error.message.includes('DropNotFound')) {
-            console.log('Drop not found during claim status check');
-            setDropStatus('not_found');
-            toast({
-              title: "Drop Not Found",
-              description: "This STRAPT Drop does not exist",
-              variant: "destructive"
-            });
-            navigate('/app');
-          }
-        }
-      }
-    };
-
-    checkClaimStatus();
-  // This effect runs when the address or drop status changes
-  // We want to check claim status when a new wallet connects
-  }, [address, dropId, dropStatus, dropInfo, circuitBroken, hasAddressClaimed, getClaimedAmount, navigate, toast]);
-
-  // Handle claim
-  const handleClaim = async () => {
-    if (!isConnected) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet to claim this STRAPT Drop",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  // Load drop info
+  const loadDropInfo = async () => {
     if (!dropId) return;
 
     try {
-      // The claimDrop function now handles errors internally and returns undefined on error
-      const amount = await claimDrop(dropId);
+      setIsLoadingDrop(true);
 
-      if (amount) {
-        setClaimedAmount(amount);
-        setHasClaimed(true);
-        setShowSuccessAnimation(true);
+      // Get drop info
+      const info = await getDropInfo(dropId);
+      setDropInfo(info);
 
-        toast({
-          title: "STRAPT Drop Claimed",
-          description: `You received ${amount} ${tokenSymbol}!`,
-        });
+      // Determine token symbol and decimals
+      const tokenAddress = info.tokenAddress.toLowerCase();
+      const idrxAddress = contractConfig.StraptDrop.supportedTokens.IDRX.toLowerCase();
+      const usdcAddress = contractConfig.StraptDrop.supportedTokens.USDC.toLowerCase();
 
-        // Hide success animation after 5 seconds
-        setTimeout(() => {
-          setShowSuccessAnimation(false);
-        }, 5000);
+      if (tokenAddress === idrxAddress) {
+        setTokenSymbol('IDRX');
+        setTokenDecimals(2);
+      } else if (tokenAddress === usdcAddress) {
+        setTokenSymbol('USDC');
+        setTokenDecimals(6);
+      }
+
+      // Check if user has already claimed
+      if (address) {
+        const claimed = await hasAddressClaimed(dropId, address);
+        setHasClaimed(claimed);
       }
     } catch (error) {
-      // This should rarely happen now since errors are handled in the hook
-      console.error('Unhandled error claiming STRAPT Drop:', error);
+      console.error('Error loading drop info:', error);
       toast({
-        title: "Error Claiming STRAPT Drop",
-        description: "An unexpected error occurred. Please try again later.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to load drop information'
+      });
+    } finally {
+      setIsLoadingDrop(false);
+    }
+  };
+
+  // Check if user is the creator and drop is less than 24 hours old
+  const isCreatorWithinCooldown = (info: DropInfo): boolean => {
+    if (!address || !info) return false;
+
+    // Check if user is the creator
+    const isCreator = info.creator.toLowerCase() === address.toLowerCase();
+
+    if (!isCreator) return false;
+
+    // Check if drop is less than 24 hours old
+    const dropCreationTime = Number(info.expiryTime) - (24 * 60 * 60); // Assuming expiryTime is set to creation time + expiry hours
+    const currentTime = Math.floor(Date.now() / 1000);
+    const timeSinceCreation = currentTime - dropCreationTime;
+    const cooldownPeriod = 24 * 60 * 60; // 24 hours in seconds
+
+    return timeSinceCreation < cooldownPeriod;
+  };
+
+  // State for success animation
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+
+  // Function to trigger confetti
+  const triggerConfetti = () => {
+    const duration = 3 * 1000;
+    const animationEnd = Date.now() + duration;
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+    function randomInRange(min: number, max: number) {
+      return Math.random() * (max - min) + min;
+    }
+
+    const interval = setInterval(() => {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        return clearInterval(interval);
+      }
+
+      const particleCount = 50 * (timeLeft / duration);
+
+      // Since particles fall down, start a bit higher than random
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: randomInRange(0, 0.2) }
+      });
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: randomInRange(0, 0.2) }
+      });
+    }, 250);
+  };
+
+  // Handle claim
+  const handleClaim = async () => {
+    if (!dropId || !isConnected || !address) {
+      toast({
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to claim tokens'
+      });
+      return;
+    }
+
+    if (dropInfo && isCreatorWithinCooldown(dropInfo)) {
+      toast({
+        title: 'Creator Cooldown',
+        description: 'As the creator, you cannot claim from your own drop within 24 hours of creation'
+      });
+      return;
+    }
+
+    try {
+      const amount = await claimDrop(dropId);
+      setClaimAmount(amount);
+      setHasClaimed(true);
+
+      // Show success animation
+      setShowSuccessAnimation(true);
+
+      // Trigger confetti
+      triggerConfetti();
+
+      // Hide success animation after 5 seconds
+      setTimeout(() => {
+        setShowSuccessAnimation(false);
+      }, 5000);
+
+      toast({
+        title: 'Success',
+        description: 'Successfully claimed tokens!'
+      });
+    } catch (error) {
+      console.error('Error claiming drop:', error);
+
+      // Handle specific error messages
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      if (errorMessage.includes('DropNotActive')) {
+        toast({
+          title: 'Error',
+          description: 'This drop is no longer active'
+        });
+      } else if (errorMessage.includes('DropExpired')) {
+        toast({
+          title: 'Error',
+          description: 'This drop has expired'
+        });
+      } else if (errorMessage.includes('AllClaimsTaken')) {
+        toast({
+          title: 'Error',
+          description: 'All claims for this drop have been taken'
+        });
+      } else if (errorMessage.includes('AlreadyClaimed')) {
+        toast({
+          title: 'Error',
+          description: 'You have already claimed from this drop'
+        });
+        setHasClaimed(true);
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to claim tokens'
+        });
+      }
+    }
+  };
+
+  // Handle QR code scan
+  const handleQRScan = (data: string) => {
+    try {
+      const url = new URL(data);
+      const params = new URLSearchParams(url.search);
+      const id = params.get('id');
+
+      if (id) {
+        setDropId(id);
+        setShowScanner(false);
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Invalid QR code'
+        });
+      }
+    } catch (error) {
+      console.error('Error parsing QR code:', error);
+      toast({
+        title: 'Error',
+        description: 'Invalid QR code'
       });
     }
   };
 
-  // Check if drop is expired
-  const isExpired = dropInfo ? (() => {
-    // Log the values for debugging
-    console.log('Drop expiryTime:', dropInfo.expiryTime);
-    console.log('Current time (seconds):', Math.floor(Date.now() / 1000));
-    console.log('Current time (ms):', Date.now());
-
-    // Check if expiryTime is valid (greater than 0)
-    if (dropInfo.expiryTime <= 0) {
-      console.error('Invalid expiryTime detected:', dropInfo.expiryTime);
-      // For drops with expiryTime = 0, we'll treat them as never expiring
-      return false; // Don't mark as expired if expiryTime is invalid
-    }
-
-    // Compare timestamps in seconds (not milliseconds)
-    const result = dropInfo.expiryTime < Math.floor(Date.now() / 1000);
-    console.log('Comparison result:', result);
-
-    return result;
-  })() : false;
-
-  // Check if all claims are taken
-  const allClaimsTaken = dropInfo ?
-    // If totalRecipients is 0 or less, consider it as not all claims taken
-    (dropInfo.totalRecipients <= 0 ? false : dropInfo.claimedCount >= dropInfo.totalRecipients)
-    : false;
-
   // Format expiry time
-  const formatExpiryTime = () => {
-    if (!dropInfo) return '';
+  const formatExpiryTime = (timestamp: bigint) => {
+    const date = new Date(Number(timestamp) * 1000);
+    return date.toLocaleString();
+  };
 
-    // Special handling for expiryTime = 0
-    if (dropInfo.expiryTime <= 0) {
-      return 'No expiration';
-    }
-
-    // expiryTime is already in seconds, convert to milliseconds for Date object
-    const expiryDate = new Date(dropInfo.expiryTime * 1000);
-
-    // Log for debugging
-    console.log('Expiry date:', expiryDate.toLocaleString());
-    console.log('Current date:', new Date().toLocaleString());
-
-    if (isExpired) {
-      return 'Expired';
-    }
-
-    // Calculate time difference
-    const now = new Date();
-    const diffMs = expiryDate.getTime() - now.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    // We don't need this condition anymore since we're using 24 hours
-    // All drops should expire within 24 hours
-
-    // Format based on time remaining
-    if (diffDays > 0) {
-      return diffDays === 1
-        ? `Expires in 1 day ${diffHours > 0 ? `and ${diffHours} hour${diffHours > 1 ? 's' : ''}` : ''}`
-        : `Expires in ${diffDays} days${diffHours > 0 ? ` and ${diffHours} hour${diffHours > 1 ? 's' : ''}` : ''}`;
-    }
-    if (diffHours > 0) {
-      return diffHours === 1
-        ? `Expires in 1 hour${diffMinutes > 0 ? ` and ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}` : ''}`
-        : `Expires in ${diffHours} hours${diffMinutes > 0 ? ` and ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}` : ''}`;
-    }
-    if (diffMinutes > 0) {
-      return `Expires in ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
-    }
-    return 'Expires in less than a minute';
+  // Check if drop is expired
+  const isExpired = (timestamp: bigint) => {
+    return Date.now() > Number(timestamp) * 1000;
   };
 
   return (
-    <div className="container max-w-md mx-auto py-6">
+    <div className="container max-w-4xl mx-auto py-4 px-4 sm:px-6 sm:py-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/app/strapt-drop')}
+            className="mr-1 p-2"
+            aria-label="Back to STRAPT Drop"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl sm:text-2xl font-bold">Claim STRAPT Drop</h1>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowScanner(true)}
+          >
+            <QrCode className="h-4 w-4 mr-2" />
+            Scan QR Code
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => navigate('/app/strapt-drop')}
+          >
+            <Gift className="h-4 w-4 mr-2" />
+            Create Drop
+          </Button>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Gift className="h-5 w-5 text-primary" />
-            STRAPT Drop
-          </CardTitle>
-          <CardDescription>
-            Claim your tokens
-          </CardDescription>
-        </CardHeader>
-
-        {isLoadingInfo ? (
-          <CardContent className="flex justify-center py-8">
-            <Loading size="lg" text="Loading STRAPT Drop..." />
-          </CardContent>
-        ) : !dropInfo ? (
-          <CardContent className="text-center py-8">
-            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <p className="text-lg font-medium">Drop Not Found</p>
-            <p className="text-muted-foreground">This STRAPT Drop does not exist or has expired</p>
-          </CardContent>
-        ) : hasClaimed ? (
-          <CardContent className="space-y-6 text-center py-8">
-            <div className={`w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto ${showSuccessAnimation ? 'animate-bounce' : ''}`}>
-              {showSuccessAnimation ? (
-                <PartyPopper className="h-10 w-10 text-primary" />
-              ) : (
-                <Check className="h-10 w-10 text-primary" />
-              )}
-            </div>
-            <div>
-              <p className="text-2xl font-bold mb-1">{claimedAmount} {tokenSymbol}</p>
-              <p className="text-muted-foreground">Successfully claimed!</p>
-            </div>
-            <div className="bg-secondary/30 p-4 rounded-lg">
-              {dropInfo.message && (
-                <p className="italic mb-2">"{dropInfo.message}"</p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                From: {dropInfo.creator.slice(0, 6)}...{dropInfo.creator.slice(-4)}
-              </p>
-            </div>
-          </CardContent>
-        ) : (
-          <CardContent className="space-y-4">
-            <div className="bg-secondary/30 p-4 rounded-lg text-center">
-              {Number(dropInfo.totalAmount) > 0 ? (
-                <p className="text-lg font-medium mb-2">
-                  {dropInfo.totalAmount} {tokenSymbol}
-                </p>
-              ) : (
-                <p className="text-lg font-medium mb-2 text-yellow-500">
-                  Loading token amount...
-                </p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                {dropInfo.totalRecipients > 0
-                  ? `For ${dropInfo.totalRecipients} recipients • ${dropInfo.isRandom ? 'Random' : 'Fixed'} distribution`
-                  : 'Distribution details unavailable'
-                }
-              </p>
-              {dropInfo.message && (
-                <p className="mt-2 italic">"{dropInfo.message}"</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-4 w-4" /> Expiry
-                </span>
-                <span className={isExpired ? 'text-destructive' : ''}>
-                  {formatExpiryTime()}
-                </span>
-              </div>
-
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Users className="h-4 w-4" /> Claims
-                </span>
-                <span className={allClaimsTaken ? 'text-destructive' : ''}>
-                  {dropInfo.totalRecipients > 0
-                    ? `${dropInfo.claimedCount} / ${dropInfo.totalRecipients}`
-                    : `${dropInfo.claimedCount} claimed`
-                  }
-                </span>
-              </div>
-            </div>
-
-            {isExpired ? (
-              <div className="bg-destructive/10 p-4 rounded-lg text-center">
-                <AlertTriangle className="h-6 w-6 text-destructive mx-auto mb-2" />
-                <p className="text-destructive font-medium">This STRAPT Drop has expired</p>
-              </div>
-            ) : allClaimsTaken ? (
-              <div className="bg-destructive/10 p-4 rounded-lg text-center">
-                <AlertTriangle className="h-6 w-6 text-destructive mx-auto mb-2" />
-                <p className="text-destructive font-medium">All claims have been taken</p>
-              </div>
-            ) : null}
-          </CardContent>
-        )}
-
-        <CardFooter>
-          {!isConnected ? (
-            <Button className="w-full" onClick={() => connectWallet()}>
-              Connect Wallet to Claim
-            </Button>
-          ) : hasClaimed ? (
-            <div className="flex gap-2 w-full">
-              <Button className="flex-1" variant="outline" onClick={() => navigate('/app/strapt-drop/my-drops')}>
-                My Drops
-              </Button>
-              <Button className="flex-1" onClick={() => navigate('/app')}>
-                Return to Home
-              </Button>
-            </div>
-          ) : (
-            <Button
-              className="w-full"
-              onClick={handleClaim}
-              disabled={isLoading || isExpired || allClaimsTaken}
+      {/* Success Animation Overlay */}
+      <AnimatePresence>
+        {showSuccessAnimation && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-card rounded-xl p-8 flex flex-col items-center max-w-md mx-4"
+              initial={{ scale: 0.8, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.8, y: 20, opacity: 0 }}
+              transition={{ type: "spring", damping: 15 }}
             >
-              {isLoading ? (
-                <>
-                  <Loading size="sm" className="mr-2" /> Claiming...
-                </>
-              ) : isExpired ? (
-                'Drop Expired'
-              ) : allClaimsTaken ? (
-                'All Claims Taken'
-              ) : (
-                'Claim STRAPT Drop'
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: [0, 1.2, 1] }}
+                transition={{ duration: 0.5, times: [0, 0.7, 1] }}
+              >
+                <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
+                  <PartyPopper className="h-10 w-10 text-green-500" />
+                </div>
+              </motion.div>
+              <motion.h2
+                className="text-xl font-bold mb-2"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                Congratulations!
+              </motion.h2>
+              <motion.p
+                className="text-center text-muted-foreground mb-4"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                You've successfully claimed tokens from this STRAPT Drop!
+              </motion.p>
+              {claimAmount && (
+                <motion.div
+                  className="bg-primary/10 rounded-lg p-4 mb-4 w-full text-center"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <p className="text-sm text-muted-foreground">You received</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {formatUnits(claimAmount, tokenDecimals)} {tokenSymbol}
+                  </p>
+                </motion.div>
               )}
-            </Button>
-          )}
-        </CardFooter>
-      </Card>
+              <motion.button
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                onClick={() => setShowSuccessAnimation(false)}
+              >
+                Close
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!isConnected ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="border-2 border-muted">
+            <CardContent className="flex flex-col items-center justify-center py-8 sm:py-10 px-4 sm:px-6 text-center">
+              <AlertTriangle className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mb-4 sm:mb-6" />
+              <p className="text-lg sm:text-xl font-medium mb-2">Wallet Not Connected</p>
+              <p className="text-sm sm:text-base text-muted-foreground mb-6">Please connect your wallet to claim tokens from a STRAPT Drop</p>
+              <Button size="lg" className="px-8">
+                Connect Wallet
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : !dropId ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="border-2 border-muted">
+            <CardContent className="flex flex-col items-center justify-center py-8 sm:py-10 px-4 sm:px-6 text-center">
+              <Gift className="h-12 w-12 sm:h-16 sm:w-16 text-primary/70 mb-4 sm:mb-6" />
+              <p className="text-lg sm:text-xl font-medium mb-2">No Drop ID Provided</p>
+              <p className="text-sm sm:text-base text-muted-foreground mb-6">Please scan a QR code or use a link to claim tokens</p>
+              <div className="flex gap-4">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => navigate('/app/strapt-drop')}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={() => setShowScanner(true)}
+                >
+                  <QrCode className="h-4 w-4 mr-2" />
+                  Scan QR Code
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : isLoadingDrop ? (
+        <div className="flex flex-col items-center justify-center py-16 sm:py-20">
+          <Loading size="lg" />
+          <p className="mt-4 text-muted-foreground animate-pulse">Loading drop information...</p>
+        </div>
+      ) : !dropInfo ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="border-2 border-destructive/30">
+            <CardContent className="flex flex-col items-center justify-center py-8 sm:py-10 px-4 sm:px-6 text-center">
+              <AlertTriangle className="h-12 w-12 sm:h-16 sm:w-16 text-destructive mb-4 sm:mb-6" />
+              <p className="text-lg sm:text-xl font-medium mb-2">Drop Not Found</p>
+              <p className="text-sm sm:text-base text-muted-foreground mb-6">The STRAPT Drop you're looking for doesn't exist or has been removed</p>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/app/strapt-drop')}
+              >
+                Create a New Drop
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="max-w-xl mx-auto"
+        >
+          <Card className="overflow-hidden border-2 border-muted">
+            <CardHeader className="bg-muted/30 pb-4">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Gift className="h-6 w-6 text-primary" />
+                STRAPT Drop
+              </CardTitle>
+              <CardDescription className="text-base">
+                {dropInfo.message || "Claim your tokens from this STRAPT Drop"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-6">
+              {/* Drop Status */}
+              <div className="flex justify-between items-center p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <motion.div
+                    className={`w-3 h-3 rounded-full ${dropInfo.isActive && !isExpired(dropInfo.expiryTime) ? 'bg-green-500' : 'bg-red-500'}`}
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                  />
+                  <span className="font-medium">Status:</span>
+                </div>
+                <span className="font-medium">
+                  {!dropInfo.isActive ? 'Inactive' :
+                   isExpired(dropInfo.expiryTime) ? 'Expired' : 'Active'}
+                </span>
+              </div>
+
+              {/* Drop Details */}
+              <div className="grid grid-cols-2 gap-6">
+                <motion.div
+                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  whileHover={{ y: -2 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <span className="text-sm text-muted-foreground">Token</span>
+                  <span className="font-medium text-lg">{tokenSymbol}</span>
+                </motion.div>
+                <motion.div
+                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  whileHover={{ y: -2 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <span className="text-sm text-muted-foreground">Distribution</span>
+                  <span className="font-medium text-lg flex items-center gap-1">
+                    {dropInfo.isRandom ? (
+                      <>
+                        <Shuffle className="h-4 w-4" /> Random
+                      </>
+                    ) : (
+                      <>
+                        <Coins className="h-4 w-4" /> Fixed
+                      </>
+                    )}
+                  </span>
+                </motion.div>
+                <motion.div
+                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  whileHover={{ y: -2 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <span className="text-sm text-muted-foreground">Claimed</span>
+                  <span className="font-medium text-lg">{dropInfo.claimedCount.toString()} / {dropInfo.totalRecipients.toString()}</span>
+                </motion.div>
+                <motion.div
+                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  whileHover={{ y: -2 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <span className="text-sm text-muted-foreground">Expires</span>
+                  <span className="font-medium text-lg">{formatExpiryTime(dropInfo.expiryTime)}</span>
+                </motion.div>
+              </div>
+
+              {/* Claim Status */}
+              <AnimatePresence>
+                {hasClaimed && (
+                  <motion.div
+                    className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-3"
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  >
+                    <Check className="h-5 w-5 text-green-500" />
+                    <div>
+                      <p className="font-medium">You've claimed from this drop</p>
+                      {claimAmount && (
+                        <p className="text-sm">
+                          Amount: {formatUnits(claimAmount, tokenDecimals)} {tokenSymbol}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Error States */}
+              <AnimatePresence>
+                {!dropInfo.isActive && (
+                  <motion.div
+                    className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    <p className="font-medium">This drop is no longer active</p>
+                  </motion.div>
+                )}
+
+                {dropInfo.isActive && isExpired(dropInfo.expiryTime) && (
+                  <motion.div
+                    className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <Clock className="h-5 w-5 text-destructive" />
+                    <p className="font-medium">This drop has expired</p>
+                  </motion.div>
+                )}
+
+                {dropInfo.isActive && !isExpired(dropInfo.expiryTime) && dropInfo.claimedCount >= dropInfo.totalRecipients && (
+                  <motion.div
+                    className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <Users className="h-5 w-5 text-destructive" />
+                    <p className="font-medium">All claims for this drop have been taken</p>
+                  </motion.div>
+                )}
+
+                {dropInfo.isActive && !isExpired(dropInfo.expiryTime) && isCreatorWithinCooldown(dropInfo) && (
+                  <motion.div
+                    className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <Clock className="h-5 w-5 text-amber-500" />
+                    <p className="font-medium">As the creator, you cannot claim from your own drop within 24 hours of creation</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </CardContent>
+            <CardFooter className="pt-2 pb-6 px-6">
+              <motion.div
+                className="w-full"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button
+                  className="w-full text-base py-6"
+                  size="lg"
+                  disabled={
+                    isLoading ||
+                    isClaiming ||
+                    hasClaimed ||
+                    !dropInfo.isActive ||
+                    isExpired(dropInfo.expiryTime) ||
+                    dropInfo.claimedCount >= dropInfo.totalRecipients ||
+                    isCreatorWithinCooldown(dropInfo)
+                  }
+                  onClick={handleClaim}
+                >
+                  {isClaiming ? (
+                    <>
+                      <Loading size="sm" className="mr-2" />
+                      Claiming...
+                    </>
+                  ) : isLoading ? (
+                    <>
+                      <Loading size="sm" className="mr-2" />
+                      Processing...
+                    </>
+                  ) : hasClaimed ? (
+                    <>
+                      <Check className="h-5 w-5 mr-2" />
+                      Already Claimed
+                    </>
+                  ) : (
+                    <>
+                      <Gift className="h-5 w-5 mr-2" />
+                      Claim Tokens
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            </CardFooter>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* QR Code Scanner */}
+      <QRCodeScanner
+        triggerType="dialog"
+        open={showScanner}
+        onOpenChange={setShowScanner}
+        onScan={handleQRScan}
+      />
     </div>
   );
 };
 
 export default StraptDropClaim;
-
-
-

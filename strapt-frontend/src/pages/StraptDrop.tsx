@@ -1,181 +1,138 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useXellarWallet } from '@/hooks/use-xellar-wallet';
-import { useTokenBalances } from '@/hooks/use-token-balances';
 import { useStraptDrop } from '@/hooks/use-strapt-drop';
+import type { TokenType } from '@/hooks/use-strapt-drop';
+import { useTokenBalances } from '@/hooks/use-token-balances';
 import { Loading } from '@/components/ui/loading';
-import { Gift, Share2, Users, Coins, Clock, ArrowRight, QrCode } from 'lucide-react';
-import QRCode from '@/components/QRCode';
+import { Gift, AlertTriangle, Check, Share2, QrCode, Shuffle, Coins, Clock } from 'lucide-react';
 import InfoTooltip from '@/components/InfoTooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import QRCode from '@/components/QRCode';
 import TokenSelect from '@/components/TokenSelect';
-import type { TokenOption } from '@/components/TokenSelect';
 
 const StraptDrop = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isConnected, address } = useXellarWallet();
+  const { createDrop, isLoading, isApproving, isCreating, currentDropId } = useStraptDrop();
   const { tokens } = useTokenBalances();
-  const { createDrop, isLoading, isConfirmed } = useStraptDrop();
 
-  // State for create drop form
+  // Form state
+  const [tokenType, setTokenType] = useState<TokenType>('IDRX');
   const [amount, setAmount] = useState('');
   const [recipients, setRecipients] = useState('10');
-  const [isRandom, setIsRandom] = useState(true);
-  const [message, setMessage] = useState('');
-  const [selectedToken, setSelectedToken] = useState<TokenOption>({
-    symbol: 'IDRX',
-    name: 'IDRX Token',
-    balance: 0,
-    icon: '/IDRX BLUE COIN.svg',
-  });
+  const [isRandomDistribution, setIsRandomDistribution] = useState(false);
+  // Fixed expiry time at 24 hours
+  const expiryHours = 24;
 
-  // State for created drop
-  const [activeTab, setActiveTab] = useState('create');
-  const [createdDropId, setCreatedDropId] = useState('');
-  const [shareLink, setShareLink] = useState('');
+  // Find selected token from tokens list
+  const selectedToken = tokens.find(token => token.symbol === tokenType) || tokens[0];
 
-  // Calculate per-recipient amount for fixed distribution
-  const perRecipientAmount = amount && recipients
-    ? (Number(amount) / Number(recipients)).toFixed(2)
-    : '0.00';
+  // UI state
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [dropLink, setDropLink] = useState('');
+
+  // Validation
+  const [errors, setErrors] = useState<{
+    amount?: string;
+    recipients?: string;
+  }>({});
+
+  // Reset form when navigating away
+  useEffect(() => {
+    return () => {
+      setShowSuccess(false);
+      setShowQR(false);
+    };
+  }, []);
+
+  // Show success dialog when drop is created
+  useEffect(() => {
+    if (currentDropId) {
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/app/strapt-drop/claim?id=${currentDropId}`;
+      setDropLink(link);
+      setShowSuccess(true);
+    }
+  }, [currentDropId]);
+
+  // Validate form
+  const validateForm = () => {
+    const newErrors: {amount?: string; recipients?: string} = {};
+
+    if (!amount || Number.parseFloat(amount) <= 0) {
+      newErrors.amount = 'Please enter a valid amount';
+    }
+
+    const recipientsNum = Number.parseInt(recipients);
+    if (!recipients || recipientsNum <= 0 || recipientsNum > 1000) {
+      newErrors.recipients = 'Please enter a valid number of recipients (1-1000)';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   // Handle form submission
-  const handleCreateDrop = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (!isConnected) {
       toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet to create a STRAPT Drop",
-        variant: "destructive"
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to create a STRAPT Drop'
       });
       return;
     }
 
-    if (!amount || !recipients) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Validate amount (minimum 1000 for IDRX, 1 for USDC)
-    const minAmount = selectedToken.symbol === 'IDRX' ? 1000 : 1;
-    if (!amount || Number.isNaN(Number(amount)) || Number(amount) < minAmount) {
-      toast({
-        title: "Invalid Amount",
-        description: `Please enter a valid amount of at least ${minAmount} ${selectedToken.symbol}`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Validate recipients
-    if (!recipients || Number.isNaN(Number(recipients)) || Number(recipients) <= 0) {
-      toast({
-        title: "Invalid Recipients",
-        description: "Please enter a valid number of recipients greater than 0",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if amount is greater than balance
-    const selectedBalance = tokens.find(t => t.symbol === selectedToken.symbol)?.balance || 0;
-    if (Number(amount) > selectedBalance) {
-      toast({
-        title: "Insufficient Balance",
-        description: `You only have ${selectedBalance.toFixed(2)} ${selectedToken.symbol} available`,
-        variant: "destructive"
-      });
+    if (!validateForm()) {
       return;
     }
 
     try {
-      const result = await createDrop(
+      await createDrop(
+        tokenType,
         amount,
-        Number(recipients),
-        isRandom,
-        selectedToken.symbol as 'IDRX' | 'USDC',
-        message
+        Number.parseInt(recipients),
+        isRandomDistribution,
+        expiryHours,
+        "" // Empty message
       );
-
-      if (result?.dropId) {
-        // Generate share link
-        const baseUrl = window.location.origin;
-        const link = `${baseUrl}/app/strapt-drop/claim?id=${result.dropId}`;
-
-        setCreatedDropId(result.dropId);
-        setShareLink(link);
-        setActiveTab('share');
-
-        toast({
-          title: "STRAPT Drop Created",
-          description: "Your STRAPT Drop has been created successfully!"
-        });
-      }
     } catch (error) {
-      console.error('Error creating STRAPT Drop:', error);
+      console.error('Error creating drop:', error);
       toast({
-        title: "Error Creating STRAPT Drop",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to create STRAPT Drop. Please try again.'
       });
     }
   };
 
-  // Handle copy link
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareLink);
-    toast({
-      title: "Link Copied",
-      description: "STRAPT Drop link copied to clipboard"
-    });
-  };
-
-  // Handle share
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'STRAPT Drop',
-          text: message || 'I sent you a STRAPT Drop!',
-          url: shareLink,
-        });
-      } catch (error) {
-        console.error('Error sharing:', error);
-        handleCopyLink();
-      }
-    } else {
-      handleCopyLink();
-    }
-  };
+  // Calculate amount per recipient for fixed distribution
+  const amountPerRecipient = Number.parseFloat(amount) / Number.parseInt(recipients || '1');
 
   return (
-    <div className="container max-w-4xl mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container max-w-4xl mx-auto py-4 px-4 sm:px-6 sm:py-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold">STRAPT Drop</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Create STRAPT Drop</h1>
           <InfoTooltip
             content={
               <div>
                 <p className="font-medium mb-1">About STRAPT Drop</p>
-                <p className="mb-1">Create and share tokens with multiple recipients.</p>
+                <p className="mb-1">Create a token drop that can be claimed by multiple recipients.</p>
                 <ul className="list-disc pl-4 text-xs space-y-1">
-                  <li>Choose IDRX or USDC tokens</li>
-                  <li>Minimum amount: 1000 IDRX or 1 USDC</li>
-                  <li>Choose fixed or random distribution</li>
-                  <li>Set number of recipients</li>
+                  <li>Choose between fixed or random distribution</li>
+                  <li>Set expiry time for unclaimed tokens</li>
                   <li>Share via link or QR code</li>
-                  <li>Unclaimed tokens can be refunded by creator after 24 hours</li>
                 </ul>
               </div>
             }
@@ -186,245 +143,269 @@ const StraptDrop = () => {
           size="sm"
           onClick={() => navigate('/app/strapt-drop/my-drops')}
         >
+          <Gift className="h-4 w-4 mr-2" />
           My Drops
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="create">Create</TabsTrigger>
-          <TabsTrigger value="share" disabled={!createdDropId}>Share</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="create">
+      {!isConnected ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-6 sm:py-8 px-4 sm:px-6 text-center">
+            <AlertTriangle className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4" />
+            <p className="text-base sm:text-lg font-medium mb-2">Wallet Not Connected</p>
+            <p className="text-sm sm:text-base text-muted-foreground mb-4">Please connect your wallet to create a STRAPT Drop</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <form onSubmit={handleSubmit}>
           <Card>
             <CardHeader>
-              <CardTitle>Create STRAPT Drop</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Gift className="h-5 w-5 text-primary" />
+                Create New STRAPT Drop
+              </CardTitle>
               <CardDescription>
-                Share tokens with multiple recipients
+                Distribute tokens to multiple recipients with a single transaction
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* Token Selection */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  <Coins className="h-4 w-4 text-muted-foreground" /> Token
-                </Label>
+                <Label htmlFor="token-type">Token</Label>
                 <TokenSelect
                   tokens={tokens}
                   selectedToken={selectedToken}
-                  onTokenChange={setSelectedToken}
+                  onTokenChange={(token) => setTokenType(token.symbol as TokenType)}
                 />
               </div>
 
+              {/* Amount */}
               <div className="space-y-2">
-                <Label htmlFor="amount" className="flex items-center gap-1">
-                <Coins className="h-4 w-4 text-muted-foreground" />  Total Amount
+                <Label htmlFor="amount" className="flex justify-between">
+                  <span>Total Amount</span>
+                  {errors.amount && <span className="text-destructive text-xs">{errors.amount}</span>}
                 </Label>
-                <div className="relative">
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder={selectedToken.symbol === 'IDRX' ? "1000.00" : "1.00"}
-                    min={selectedToken.symbol === 'IDRX' ? "1000" : "1"}
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    required
-                    className={`pr-16 ${
-                      amount && (
-                        Number.isNaN(Number(amount)) ||
-                        Number(amount) < (selectedToken.symbol === 'IDRX' ? 1000 : 1) ||
-                        (Number(amount) > (tokens.find(t => t.symbol === selectedToken.symbol)?.balance || 0))
-                      ) ? 'border-red-500 focus-visible:ring-red-500' : ''
-                    }`}
-                  />
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                    <span className="text-xs text-muted-foreground mr-2">{selectedToken.symbol}</span>
-                    <button
-                      type="button"
-                      className="px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground"
-                      onClick={() => {
-                        const balance = tokens.find(t => t.symbol === selectedToken.symbol)?.balance;
-                        if (balance) {
-                          setAmount(balance.toString());
-                        }
-                      }}
-                    >
-                      MAX
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Available: {tokens.find(t => t.symbol === selectedToken.symbol)?.balance.toFixed(2) || '0.00'} {selectedToken.symbol}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Minimum amount: {selectedToken.symbol === 'IDRX' ? '1000' : '1'} {selectedToken.symbol}
-                </p>
+                <Input
+                  id="amount"
+                  type="number"
+                  placeholder="Enter amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  min="0"
+                  step="0.01"
+                  className={errors.amount ? "border-destructive" : ""}
+                />
               </div>
 
+              {/* Recipients */}
               <div className="space-y-2">
-                <Label htmlFor="recipients" className="flex items-center gap-1">
-                <Users className="h-4 w-4 text-muted-foreground" />  Number of Recipients
+                <Label htmlFor="recipients" className="flex justify-between">
+                  <span>Number of Recipients</span>
+                  {errors.recipients && <span className="text-destructive text-xs">{errors.recipients}</span>}
                 </Label>
                 <Input
                   id="recipients"
                   type="number"
-                  placeholder="10"
-                  min="1"
-                  step="1"
+                  placeholder="Enter number of recipients"
                   value={recipients}
                   onChange={(e) => setRecipients(e.target.value)}
-                  required
-                  className={`${
-                    recipients && (
-                      Number.isNaN(Number(recipients)) ||
-                      Number(recipients) <= 0
-                    ) ? 'border-red-500 focus-visible:ring-red-500' : ''
-                  }`}
+                  min="1"
+                  max="1000"
+                  className={errors.recipients ? "border-destructive" : ""}
                 />
-                {recipients && Number(recipients) > 0 && !isRandom && (
-                  <p className="text-xs text-muted-foreground">
-                    Each recipient will receive {perRecipientAmount} {selectedToken.symbol}
-                  </p>
-                )}
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="random"
-                  checked={isRandom}
-                  onCheckedChange={setIsRandom}
-                />
-                <Label htmlFor="random" className="flex items-center gap-1">
-                  Random Distribution
-                  <InfoTooltip
-                    content={
-                      <div>
-                        <p className="font-medium mb-1">Random Distribution</p>
-                        <p>- When enabled, each recipient will receive a random amount of tokens.</p>
-                        <p>- When disabled, each recipient will receive an equal amount.</p>
-                      </div>
-                    }
-                    iconSize={14}
-                  />
-                </Label>
-              </div>
-
-              {/* <div className="space-y-2">
-                <Label htmlFor="message" className="flex items-center gap-1">
-                  Message (Optional) <Gift className="h-4 w-4 text-muted-foreground" />
-                </Label>
-                <Textarea
-                  id="message"
-                  placeholder="Add a message for your recipients..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="resize-none"
-                />
-              </div> */}
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                <Clock className="h-4 w-4 text-muted-foreground" />  Expiry Time
-                </Label>
-                <div className="p-3 bg-secondary/30 rounded-md">
-                  <p className="text-sm">24 hours</p>
+              {/* Distribution Type */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="random-distribution" className="font-medium">Distribution Type</Label>
+                    <InfoTooltip content="Choose how tokens will be distributed among recipients" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-medium ${isRandomDistribution ? 'text-amber-500' : 'text-blue-500'}`}>
+                      {isRandomDistribution ? (
+                        <span className="flex items-center">
+                          <Shuffle className="h-4 w-4 mr-1" /> Random
+                        </span>
+                      ) : (
+                        <span className="flex items-center">
+                          <Coins className="h-4 w-4 mr-1" /> Fixed
+                        </span>
+                      )}
+                    </span>
+                    <Switch
+                      id="random-distribution"
+                      checked={isRandomDistribution}
+                      onCheckedChange={setIsRandomDistribution}
+                    />
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Unclaimed tokens can be refunded by you after 24 hours
-                </p>
+
+                <div className={`p-3 rounded-lg ${isRandomDistribution ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-blue-500/10 border border-blue-500/20'}`}>
+                  {isRandomDistribution ? (
+                    <div className="flex items-start gap-3">
+                      <Shuffle className="h-5 w-5 text-amber-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Random Distribution</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Recipients will receive random amounts between 1% and 200% of the average amount.
+                          This adds an element of surprise for recipients.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3">
+                      <Coins className="h-5 w-5 text-blue-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Fixed Distribution</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Each recipient will receive exactly the same amount of tokens.
+                          {amount && recipients && !Number.isNaN(amountPerRecipient) && (
+                            <span className="block mt-1 font-medium">
+                              Each recipient will get: {amountPerRecipient.toFixed(6)} {tokenType}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Expiry Time */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="expiry-time">Expiry Time</Label>
+                  <span className="text-sm font-medium">{expiryHours} hours</span>
+                </div>
+                <div className="bg-muted/30 p-3 rounded-lg flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Fixed at 24 hours</p>
+                    <p className="text-xs text-muted-foreground">
+                      Unclaimed tokens can be refunded after expiry
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button
-                className="w-full"
-                onClick={handleCreateDrop}
-                disabled={
-                  isLoading ||
-                  !amount ||
-                  !recipients ||
-                  Number.isNaN(Number(amount)) ||
-                  Number(amount) < (selectedToken.symbol === 'IDRX' ? 1000 : 1) ||
-                  Number.isNaN(Number(recipients)) ||
-                  Number(recipients) <= 0 ||
-                  (Number(amount) > (tokens.find(t => t.symbol === selectedToken.symbol)?.balance || 0))
-                }
-              >
-                {isLoading ? (
+              <Button type="submit" className="w-full" disabled={isLoading || isApproving || isCreating}>
+                {isApproving ? (
                   <>
-                    <Loading size="sm" className="mr-2" /> Creating...
+                    <Loading size="sm" className="mr-2" />
+                    Approving Token...
+                  </>
+                ) : isCreating ? (
+                  <>
+                    <Loading size="sm" className="mr-2" />
+                    Creating Drop...
+                  </>
+                ) : isLoading ? (
+                  <>
+                    <Loading size="sm" className="mr-2" />
+                    Processing...
                   </>
                 ) : (
                   <>
-                    Create STRAPT Drop <ArrowRight className="ml-2 h-4 w-4" />
+                    <Gift className="h-4 w-4 mr-2" />
+                    Create STRAPT Drop
                   </>
                 )}
               </Button>
             </CardFooter>
           </Card>
-        </TabsContent>
+        </form>
+      )}
 
-        <TabsContent value="share">
-          {createdDropId && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Share Your STRAPT Drop</CardTitle>
-                <CardDescription>
-                  Share this link or QR code with your recipients
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="bg-secondary/30 p-4 rounded-lg text-center">
-                  <p className="text-lg font-medium mb-2">
-                    {amount} {selectedToken.symbol}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    For {recipients} recipients • {isRandom ? 'Random' : 'Fixed'} distribution
-                  </p>
-                  {message && (
-                    <p className="mt-2 italic">"{message}"</p>
-                  )}
-                </div>
+      {/* Success Dialog */}
+      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-green-500" />
+              STRAPT Drop Created!
+            </DialogTitle>
+            <DialogDescription>
+              Your STRAPT Drop has been created successfully. Share the link with recipients to let them claim their tokens.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-2">
+              <Input
+                readOnly
+                value={dropLink}
+                className="flex-1"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(dropLink);
+                  toast({
+                    title: 'Success',
+                    description: 'Link copied to clipboard'
+                  });
+                }}
+              >
+                Copy
+              </Button>
+            </div>
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                onClick={() => setShowQR(true)}
+              >
+                <Share2 className="h-4 w-4 mr-2" />
+                Show QR Code
+              </Button>
+            </div>
+          </div>
+          <div className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSuccess(false);
+                navigate('/app/strapt-drop/my-drops');
+              }}
+            >
+              View My Drops
+            </Button>
+            <Button
+              onClick={() => {
+                setShowSuccess(false);
+                setTokenType('IDRX');
+                setAmount('');
+                setRecipients('10');
+                setIsRandomDistribution(false);
+              }}
+            >
+              Create Another Drop
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-                <div className="flex justify-center">
-                  <div className="p-4 bg-white rounded-lg">
-                    <QRCode value={shareLink} size={200} bgColor="#FFFFFF" fgColor="#000000" />
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <Input
-                    value={shareLink}
-                    readOnly
-                    className="pr-24"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2"
-                    onClick={handleCopyLink}
-                  >
-                    Copy Link
-                  </Button>
-                </div>
-
-                <div className="text-center text-sm text-muted-foreground">
-                  <p>Expires in 24 hours</p>
-                  <p className="mt-1">Unclaimed tokens can be refunded by you after expiry</p>
-                </div>
-              </CardContent>
-              <CardFooter className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setActiveTab('create')}>
-                  Create Another
-                </Button>
-                <Button className="flex-1" onClick={handleShare}>
-                  <Share2 className="h-4 w-4 mr-2" /> Share
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+      {/* QR Code Dialog */}
+      <Dialog open={showQR} onOpenChange={setShowQR}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>STRAPT Drop QR Code</DialogTitle>
+            <DialogDescription>
+              Scan this QR code to claim tokens from the STRAPT Drop
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center py-4">
+            <QRCode value={dropLink} size={250} />
+          </div>
+          <Button
+            onClick={() => setShowQR(false)}
+          >
+            Close
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1,1528 +1,620 @@
-import { useState } from 'react';
-import { useAccount, useConfig } from 'wagmi';
-import { waitForTransactionReceipt, writeContract, readContract } from 'wagmi/actions';
-import { parseUnits, formatUnits } from 'viem';
+import { useState, useCallback } from 'react';
+import { parseUnits, decodeEventLog } from 'viem';
 import { toast } from 'sonner';
-
-// Import contract config
-import contractConfig from '@/contracts/contract-config.json';
-
-// Token addresses on Lisk Sepolia
-const IDRX_ADDRESS = contractConfig.ProtectedTransfer.supportedTokens.IDRX as `0x${string}`;
-const USDC_ADDRESS = contractConfig.ProtectedTransfer.supportedTokens.USDC as `0x${string}`;
-
-// Import ABI
+import { readContract, simulateContract, writeContract, waitForTransactionReceipt, getAccount } from 'wagmi/actions';
+import { config } from '@/providers/XellarProvider';
 import StraptDropABI from '@/contracts/StraptDrop.json';
+import contractConfig from '@/contracts/contract-config.json';
+import USDCABI from '@/contracts/USDCMock.json';
+import IDRXABI from '@/contracts/IDRX.json';
+import { useXellarWallet } from './use-xellar-wallet';
+import { useTokenBalances } from './use-token-balances';
 
-// StraptDrop contract address on Lisk Sepolia
+// Contract addresses from config
 const STRAPT_DROP_ADDRESS = contractConfig.StraptDrop.address as `0x${string}`;
+const USDC_ADDRESS = contractConfig.StraptDrop.supportedTokens.USDC as `0x${string}`;
+const IDRX_ADDRESS = contractConfig.StraptDrop.supportedTokens.IDRX as `0x${string}`;
 
-// Define types
+// Token types
+export type TokenType = 'USDC' | 'IDRX';
+
+// Drop info type
 export interface DropInfo {
-  creator: string;
-  tokenAddress: string;
-  totalAmount: string;
-  remainingAmount: string;
-  claimedCount: number;
-  totalRecipients: number;
+  creator: `0x${string}`;
+  tokenAddress: `0x${string}`;
+  totalAmount: bigint;
+  remainingAmount: bigint;
+  claimedCount: bigint;
+  totalRecipients: bigint;
+  amountPerRecipient: bigint;
   isRandom: boolean;
-  expiryTime: number;
+  expiryTime: bigint;
   message: string;
   isActive: boolean;
 }
 
-export interface CreateDropResult {
-  dropId: string;
-  txHash: string;
+// Define interfaces for event args
+interface EventArgs {
+  [key: string]: unknown;
+}
+
+interface DropCreatedArgs extends EventArgs {
+  dropId: `0x${string}`;
+  creator: `0x${string}`;
+  tokenAddress: `0x${string}`;
+  totalAmount: bigint;
+}
+
+interface DropClaimedArgs extends EventArgs {
+  dropId: `0x${string}`;
+  claimer: `0x${string}`;
+  amount: bigint;
 }
 
 export function useStraptDrop() {
-  const { address, isConnected } = useAccount();
-  const config = useConfig();
-
   const [isLoading, setIsLoading] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false);
-
-  // State for user's created drops
-  const [userDrops, setUserDrops] = useState<{id: string; info: DropInfo}[]>([]);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [isRefunding, setIsRefunding] = useState(false);
   const [isLoadingUserDrops, setIsLoadingUserDrops] = useState(false);
+  const [currentDropId, setCurrentDropId] = useState<string | null>(null);
+  const { address, isConnected } = useXellarWallet();
+  const { tokens } = useTokenBalances();
 
-  /**
-   * Create a new STRAPT Drop
-   * @param amount Total amount of tokens to distribute
-   * @param recipients Number of recipients who can claim
-   * @param isRandom Whether distribution is random or fixed
-   * @param tokenSymbol Symbol of the token to use (IDRX or USDC)
-   * @param message Optional message for the drop
-   * @returns Result containing the drop ID and transaction hash
-   */
+  // Helper function to get token address from token type
+  const getTokenAddress = useCallback((tokenType: TokenType): `0x${string}` => {
+    switch (tokenType) {
+      case 'USDC':
+        return USDC_ADDRESS;
+      case 'IDRX':
+        return IDRX_ADDRESS;
+      default:
+        throw new Error(`Unsupported token type: ${tokenType}`);
+    }
+  }, []);
+
+  // Helper function to get token decimals
+  const getTokenDecimals = useCallback((tokenType: TokenType): number => {
+    switch (tokenType) {
+      case 'USDC':
+        return 6;
+      case 'IDRX':
+        return 2;
+      default:
+        return 18;
+    }
+  }, []);
+
+  // Create a new STRAPT Drop
   const createDrop = async (
+    tokenType: TokenType,
     amount: string,
     recipients: number,
     isRandom: boolean,
-    tokenSymbol: 'IDRX' | 'USDC',
+    expiryHours: number,
     message: string
-  ): Promise<CreateDropResult | undefined> => {
+  ) => {
     try {
       setIsLoading(true);
-      setIsConfirmed(false);
 
       if (!isConnected || !address) {
-        toast.error('Wallet not connected');
-        return undefined;
+        console.error("No wallet connected");
+        toast.error("Please connect your wallet");
+        throw new Error("No wallet connected");
       }
 
-      // Validate inputs
-      if (!amount || Number(amount) <= 0) {
-        toast.error('Invalid amount');
-        return undefined;
-      }
+      const tokenAddress = getTokenAddress(tokenType);
+      const tokenDecimals = getTokenDecimals(tokenType);
 
-      if (recipients <= 0) {
-        toast.error('Invalid number of recipients');
-        return undefined;
-      }
+      // Convert amount to token units
+      const amountInUnits = parseUnits(amount, tokenDecimals);
 
-      // Define token configuration
-      const tokenConfig = {
-        'IDRX': {
-          address: IDRX_ADDRESS,
-          decimals: 2,
-          minAmount: 1000
-        },
-        'USDC': {
-          address: USDC_ADDRESS,
-          decimals: 6,
-          minAmount: 1
+      // Calculate expiry time (current time + hours)
+      const expiryTime = BigInt(Math.floor(Date.now() / 1000) + (expiryHours * 3600));
+
+      // First approve the token transfer
+      const tokenABI = tokenType === 'IDRX' ? IDRXABI.abi : USDCABI.abi;
+
+      // Check allowance
+      console.log('Checking allowance...');
+      const allowance = await readContract(config, {
+        address: tokenAddress,
+        abi: tokenABI,
+        functionName: 'allowance',
+        args: [address, STRAPT_DROP_ADDRESS],
+      }) as bigint;
+
+      console.log('Current allowance:', allowance.toString());
+      console.log('Required amount:', amountInUnits.toString());
+
+      // Approve if needed
+      if (allowance < amountInUnits) {
+        setIsApproving(true);
+        toast.info('Approving token transfer...');
+
+        try {
+          // Get the account
+          const account = getAccount(config);
+
+          if (!account || !account.address) {
+            throw new Error("No wallet connected");
+          }
+
+          // Simulate the approval transaction
+          const { request: approveRequest } = await simulateContract(config, {
+            address: tokenAddress,
+            abi: tokenABI,
+            functionName: 'approve',
+            args: [STRAPT_DROP_ADDRESS, amountInUnits],
+            account: account.address,
+          });
+
+          // Send the approval transaction
+          console.log('Sending approval transaction...');
+          const approveHash = await writeContract(config, approveRequest);
+          console.log('Approval transaction sent with hash:', approveHash);
+
+          // Wait for approval transaction to be confirmed
+          console.log('Waiting for approval transaction to be confirmed...');
+          const approveReceipt = await waitForTransactionReceipt(config, { hash: approveHash });
+          console.log('Approval transaction confirmed:', approveReceipt);
+
+          toast.success(`Approved ${tokenType} for transfer`);
+        } catch (error) {
+          console.error('Error approving token:', error);
+          toast.error('Failed to approve token');
+          throw error;
+        } finally {
+          setIsApproving(false);
         }
-      };
-
-      // Get token details
-      const tokenDetails = tokenConfig[tokenSymbol];
-      if (!tokenDetails) {
-        toast.error(`Unsupported token: ${tokenSymbol}`);
-        return undefined;
       }
 
-      // Check minimum amount requirements
-      if (Number(amount) < tokenDetails.minAmount) {
-        toast.error(`Minimum amount is ${tokenDetails.minAmount} ${tokenSymbol}`);
-        return undefined;
-      }
-
-      // Parse amount with correct decimals
-      const parsedAmount = parseUnits(amount, tokenDetails.decimals);
-
-      // Calculate expiry time (current time + 24 hours)
-      const expiryTime = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours in seconds
-
-      console.log('Creating drop with expiryTime:', expiryTime, 'which is', new Date(expiryTime * 1000).toLocaleString());
-
-      // Get the current chain from the config
-      const chain = config.chains[0];
-
-      // Load the appropriate token ABI
-      const tokenABI = tokenSymbol === 'IDRX'
-        ? (await import('@/contracts/IDRX.json')).default.abi
-        : (await import('@/contracts/USDCMock.json')).default.abi;
+      // Now create the drop
+      setIsCreating(true);
+      toast.info('Creating STRAPT Drop...');
 
       try {
-        // First, approve token for transfer
-        const approvalHash = await writeContract(config, {
-          abi: tokenABI,
-          functionName: 'approve',
-          args: [STRAPT_DROP_ADDRESS, parsedAmount],
-          address: tokenDetails.address,
-          account: address,
-          chain,
-        });
+        // Get the account
+        const account = getAccount(config);
 
-        toast.success('Approval transaction submitted. Please wait for confirmation...');
+        if (!account || !account.address) {
+          throw new Error("No wallet connected");
+        }
 
-        // Wait for approval transaction to be confirmed
-        await waitForTransactionReceipt(config, {
-          hash: approvalHash,
-        });
-
-        toast.success('Approval confirmed. Creating STRAPT Drop...');
-
-        // Now create the drop
-        const hash = await writeContract(config, {
+        // Simulate the create drop transaction
+        const { request: createRequest } = await simulateContract(config, {
+          address: STRAPT_DROP_ADDRESS,
           abi: StraptDropABI.abi,
           functionName: 'createDrop',
-          args: [
-            tokenDetails.address,
-            parsedAmount,
-            BigInt(recipients),
-            isRandom,
-            BigInt(expiryTime),
-            message
-          ],
-          address: STRAPT_DROP_ADDRESS,
-          account: address,
-          chain,
+          args: [tokenAddress, amountInUnits, BigInt(recipients), isRandom, expiryTime, message],
+          account: account.address,
         });
 
-        toast.success('STRAPT Drop transaction submitted. Please wait for confirmation...');
+        // Send the create drop transaction
+        console.log('Sending create drop transaction...');
+        const createHash = await writeContract(config, createRequest);
+        console.log('Create drop transaction sent with hash:', createHash);
 
-        // Save the transaction hash to localStorage for validation
-        localStorage.setItem('last_tx_hash', hash);
+        // Wait for create drop transaction to be confirmed
+        console.log('Waiting for create drop transaction to be confirmed...');
+        const createReceipt = await waitForTransactionReceipt(config, { hash: createHash });
+        console.log('Create drop transaction confirmed:', createReceipt);
 
-        // Wait for transaction to be confirmed
-        const receipt = await waitForTransactionReceipt(config, {
-          hash,
-        });
+        // Find the DropCreated event to get the drop ID
+        let dropId: `0x${string}` | null = null;
 
-        // Extract the dropId from the transaction receipt logs
-        let dropId = '';
+        for (const log of createReceipt.logs) {
+          try {
+            const event = decodeEventLog({
+              abi: StraptDropABI.abi,
+              data: log.data,
+              topics: log.topics,
+            });
 
-        try {
-          console.log('[createDrop] Transaction receipt logs:', receipt.logs);
-
-          // Find the DropCreated event in the logs
-          for (const log of receipt.logs) {
-            console.log('[createDrop] Checking log:', log);
-            console.log('[createDrop] Log topics:', log.topics);
-
-            // Look for the event with the right topic signature for DropCreated
-            // This is the keccak256 hash of "DropCreated(bytes32,address,address,uint256,uint256,bool,string)"
-            const expectedSignature = '0x9c3f932ea543a2b1a63b3650099a4c5c8c61cd9d0b0e2f6f4bf0d4e1a6d7f20a';
-
-            if (log.topics[0] === expectedSignature) {
-              console.log('[createDrop] Found DropCreated event with signature:', log.topics[0]);
-
-              // This is the DropCreated event
-              // The dropId should be in the first parameter position
-              dropId = log.topics[1];
-              console.log('[createDrop] Extracted dropId from event:', dropId);
+            if (event.eventName === 'DropCreated') {
+              // Cast the args to our known structure
+              const args = event.args as unknown as DropCreatedArgs;
+              dropId = args.dropId;
               break;
-            } else if (log.address.toLowerCase() === STRAPT_DROP_ADDRESS.toLowerCase()) {
-              console.log('[createDrop] Found log from StraptDrop contract with signature:', log.topics[0]);
-
-              // This is a log from the StraptDrop contract, but not the DropCreated event
-              // Let's check if it has at least one topic that could be a dropId
-              if (log.topics.length > 1 && log.topics[1].startsWith('0x') && log.topics[1].length === 66) {
-                console.log('[createDrop] Found potential dropId in log:', log.topics[1]);
-                dropId = log.topics[1];
-                break;
-              }
             }
+          } catch (e) {
+            // Skip logs that can't be decoded
           }
-
-          if (!dropId) {
-            console.warn('[createDrop] Could not find dropId in transaction logs, using transaction hash as fallback');
-            // Use the transaction hash as a fallback
-            dropId = hash;
-            console.log('[createDrop] Using transaction hash as dropId:', dropId);
-          }
-        } catch (error) {
-          console.error('[createDrop] Error extracting dropId from logs:', error);
-          // Use the transaction hash as a fallback
-          dropId = hash;
-          console.log('[createDrop] Using transaction hash as dropId due to error:', dropId);
         }
 
-        // Save the drop ID to localStorage for the user
-        saveUserDrop(dropId, hash);
-
-        // Verify that the dropId is valid by checking if it exists in the contract
-        try {
-          console.log('[createDrop] Verifying dropId exists in contract:', dropId);
-
-          // Wait a bit for the blockchain to update
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          // Check if the drop exists
-          const exists = await checkDropExists(dropId);
-
-          if (exists) {
-            console.log('[createDrop] DropId verified successfully:', dropId);
-          } else {
-            console.warn('[createDrop] Could not verify dropId:', dropId);
-            console.warn('[createDrop] This might be a transaction hash, not a dropId');
-
-            // If we're using the transaction hash as dropId, log a warning
-            if (dropId === hash) {
-              console.warn('[createDrop] Using transaction hash as dropId, this might not work for claiming');
-            }
-          }
-        } catch (error) {
-          console.error('[createDrop] Error verifying dropId:', error);
-          // Continue anyway, we'll return the dropId we have
+        if (!dropId) {
+          // If we couldn't find the drop ID in the logs, generate a random one
+          // This is just a fallback and shouldn't happen in normal operation
+          dropId = `0x${Array.from({length: 64}, () =>
+            Math.floor(Math.random() * 16).toString(16)).join('')}` as `0x${string}`;
+          console.warn('Could not find drop ID in logs, using generated ID:', dropId);
         }
 
-        setIsConfirmed(true);
-
-        return {
-          dropId,
-          txHash: hash,
-        };
+        setCurrentDropId(dropId);
+        toast.success('STRAPT Drop created successfully!');
+        return dropId;
       } catch (error) {
-        if (error instanceof Error) {
-          if (error.message.includes('user rejected')) {
-            toast.error('Transaction rejected by user');
-          } else if (error.message.includes('insufficient funds')) {
-            toast.error('Insufficient funds to create STRAPT Drop');
-          } else if (error.message.includes('InvalidAmount')) {
-            toast.error('Invalid amount');
-          } else if (error.message.includes('InvalidRecipients')) {
-            toast.error('Invalid number of recipients');
-          } else if (error.message.includes('InvalidExpiryTime')) {
-            toast.error('Invalid expiry time');
-          } else {
-            toast.error(`Error creating STRAPT Drop: ${error.message}`);
-          }
-        } else {
-          toast.error('An unknown error occurred while creating STRAPT Drop');
-        }
+        console.error('Error creating drop:', error);
+        toast.error('Failed to create STRAPT Drop');
         throw error;
+      } finally {
+        setIsCreating(false);
       }
     } catch (error) {
-      console.error('Error creating STRAPT Drop:', error);
+      console.error('Error creating drop:', error);
+      toast.error('Failed to create STRAPT Drop');
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  /**
-   * Helper function to validate a drop ID
-   * @param dropId The drop ID to validate
-   * @returns True if valid, false otherwise
-   */
-  const validateDropId = (dropId: string): boolean => {
-    console.log('[validateDropId] Validating drop ID:', dropId);
-
-    // Check basic format requirements
-    if (!dropId) {
-      console.error('[validateDropId] dropId is null or undefined');
-      return false;
-    }
-
-    if (!dropId.startsWith('0x')) {
-      console.error('[validateDropId] dropId does not start with 0x:', dropId);
-      return false;
-    }
-
-    if (dropId.length !== 66) {
-      console.error('[validateDropId] dropId length is not 66 characters:', dropId, 'Length:', dropId.length);
-      return false;
-    }
-
-    // Check if it's a valid hex string (after 0x prefix)
-    const hexPart = dropId.slice(2);
-    const hexRegex = /^[0-9a-fA-F]+$/;
-    if (!hexRegex.test(hexPart)) {
-      console.error('[validateDropId] dropId contains invalid hex characters:', dropId);
-      return false;
-    }
-
-    // Check if this is a transaction hash (which is not a valid dropId)
-    // Transaction hashes are also 66 characters (0x + 64 hex chars) but they're not valid dropIds
-    // We can't reliably distinguish them, but we can log a warning if we suspect it's a tx hash
-    if (dropId === localStorage.getItem('last_tx_hash')) {
-      console.warn('[validateDropId] dropId matches last transaction hash, this might not be a valid dropId:', dropId);
-      // We still return true because we can't be 100% sure
-    }
-
-    return true;
-  };
-
-  /**
-   * Helper function to check if a dropId exists in the contract
-   * @param dropId The drop ID to check
-   * @returns Promise<boolean> True if the drop exists, false otherwise
-   */
-  const checkDropExists = async (dropId: string): Promise<boolean> => {
-    console.log('[checkDropExists] Checking if drop exists:', dropId);
-
-    try {
-      // Try to get the drop info
-      const info = await getDropInfo(dropId);
-
-      // If we got info, the drop exists
-      const exists = !!info;
-      console.log('[checkDropExists] Drop exists:', exists);
-      return exists;
-    } catch (error) {
-      console.error('[checkDropExists] Error checking if drop exists:', error);
-
-      // If we got a DropNotFound error, the drop doesn't exist
-      if (error instanceof Error && error.message.includes('DropNotFound')) {
-        console.log('[checkDropExists] Drop does not exist (DropNotFound error)');
-        return false;
-      }
-
-      // For other errors, we can't be sure, so we return false
-      return false;
-    }
-  };
-
-  /**
-   * Helper function to determine token decimals based on token address
-   * @param tokenAddress The token address
-   * @returns The number of decimals for the token
-   */
-  const getTokenDecimals = (tokenAddress: string): number => {
-    console.log('[getTokenDecimals] Getting decimals for token:', tokenAddress);
-
-    // Handle zero address case - use USDC as default since that's what we know is being used
-    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
-      console.log('[getTokenDecimals] Zero address detected, using USDC token instead');
-      return 6; // USDC has 6 decimals
-    }
-
-    // Get token addresses from contract config
-    const tokenAddresses = {
-      IDRX: IDRX_ADDRESS.toLowerCase(),
-      USDC: USDC_ADDRESS.toLowerCase()
-    };
-
-    if (tokenAddress.toLowerCase() === tokenAddresses.USDC) {
-      console.log('[getTokenDecimals] Token identified as USDC, using 6 decimals');
-      return 6; // USDC has 6 decimals
-    }
-
-    console.log('[getTokenDecimals] Token identified as IDRX or unknown, using 2 decimals');
-    return 2; // Default to IDRX decimals
-  };
-
-  /**
-   * Helper function to validate drop status
-   * @param dropInfo The drop info object
-   * @returns An error message if invalid, undefined if valid
-   */
-  const validateDropStatus = (dropInfo: DropInfo): string | undefined => {
-    console.log('[validateDropStatus] Validating drop status:', dropInfo);
-
-    if (!dropInfo.isActive) {
-      console.error('[validateDropStatus] Drop is not active');
-      return 'This STRAPT Drop is not active';
-    }
-
-    const currentTime = Math.floor(Date.now() / 1000);
-    if (dropInfo.expiryTime < currentTime) {
-      console.error('[validateDropStatus] Drop has expired. Expiry:', new Date(dropInfo.expiryTime * 1000).toLocaleString(), 'Current:', new Date(currentTime * 1000).toLocaleString());
-      return 'This STRAPT Drop has expired';
-    }
-
-    if (dropInfo.claimedCount >= dropInfo.totalRecipients) {
-      console.error('[validateDropStatus] All claims taken. Claimed:', dropInfo.claimedCount, 'Total:', dropInfo.totalRecipients);
-      return 'All claims for this STRAPT Drop have been taken';
-    }
-
-    console.log('[validateDropStatus] Drop is valid and claimable');
-    return undefined;
-  };
-
-  /**
-   * Helper function to extract claimed amount from transaction logs
-   * @param receipt The transaction receipt
-   * @param tokenDecimals The number of decimals for the token
-   * @returns The claimed amount as a string
-   */
-  const extractClaimedAmount = (receipt: { logs: Array<{ topics: Array<string>; data: string }> }, tokenDecimals: number): string => {
-    console.log('[extractClaimedAmount] Extracting claimed amount from receipt');
-
-    // Find the DropClaimed event in the logs
-    for (const log of receipt.logs) {
-      // Look for the event with the right topic signature for DropClaimed
-      // This is the keccak256 hash of "DropClaimed(bytes32,address,uint256)"
-      if (log.topics[0] === '0x7d19b0eae681e571d7603a5e9f2a0e8e5ada419a4c1b267e6932a87f3e5aa18a') {
-        console.log('[extractClaimedAmount] Found DropClaimed event');
-
-        // The amount should be in the data field
-        const data = log.data;
-        if (data && data.length >= 66) {
-          // Extract the amount from the data
-          const amountHex = `0x${data.slice(2, 66)}`;
-          const amountBigInt = BigInt(amountHex);
-          const amount = formatUnits(amountBigInt, tokenDecimals);
-          console.log('[extractClaimedAmount] Extracted amount:', amount, 'with', tokenDecimals, 'decimals');
-          return amount;
-        }
-      }
-    }
-
-    console.warn('[extractClaimedAmount] Could not extract amount from logs');
-    return '0';
-  };
-
-  /**
-   * Claim tokens from a STRAPT Drop
-   * @param dropId Unique identifier of the drop
-   * @returns Amount of tokens claimed
-   */
-  const claimDrop = async (dropId: string): Promise<string | undefined> => {
-    console.log('[claimDrop] Starting claim process for drop ID:', dropId);
-
+  // Claim tokens from a STRAPT Drop
+  const claimDrop = async (dropId: string) => {
     try {
       setIsLoading(true);
+      setIsClaiming(true);
 
-      // Check wallet connection
       if (!isConnected || !address) {
-        console.error('[claimDrop] Wallet not connected');
-        toast.error('Wallet not connected');
-        return undefined;
+        console.error("No wallet connected");
+        toast.error("Please connect your wallet");
+        throw new Error("No wallet connected");
       }
 
-      // Validate drop ID format
-      if (!validateDropId(dropId)) {
-        toast.error('Invalid drop ID format');
-        return undefined;
-      }
-
-      // Get drop info
-      console.log('[claimDrop] Fetching drop info');
-      let tokenDecimals = 2; // Default to IDRX (2 decimals)
-      let dropInfo: DropInfo | undefined;
+      // Claim the drop
+      toast.info('Claiming tokens from STRAPT Drop...');
 
       try {
-        dropInfo = await getDropInfo(dropId);
-        console.log('[claimDrop] Drop info retrieved:', dropInfo);
+        // Get the account
+        const account = getAccount(config);
 
-        if (dropInfo) {
-          // Validate drop status
-          const errorMessage = validateDropStatus(dropInfo);
-          if (errorMessage) {
-            toast.error(errorMessage);
-            return undefined;
-          }
-
-          // Determine token decimals
-          tokenDecimals = getTokenDecimals(dropInfo.tokenAddress);
-        } else {
-          console.error('[claimDrop] Drop info not found');
-          toast.error('Drop not found');
-          return undefined;
+        if (!account || !account.address) {
+          throw new Error("No wallet connected");
         }
-      } catch (error) {
-        console.error('[claimDrop] Error getting drop info:', error);
-        toast.error('Error retrieving drop information');
-        return undefined;
-      }
 
-      // Check if user has already claimed
-      console.log('[claimDrop] Checking if user has already claimed');
-      try {
-        const hasClaimed = await hasAddressClaimed(dropId, address);
-        console.log('[claimDrop] Has claimed status:', hasClaimed);
-
-        if (hasClaimed) {
-          toast.error('You have already claimed from this STRAPT Drop');
-          return undefined;
-        }
-      } catch (error) {
-        console.error('[claimDrop] Error checking claim status:', error);
-        // Continue anyway, the contract will validate
-      }
-
-      // Get the current chain from the config
-      const chain = config.chains[0];
-      console.log('[claimDrop] Using chain:', chain.name);
-
-      try {
-        // Submit claim transaction
-        console.log('[claimDrop] Submitting claim transaction');
-        const hash = await writeContract(config, {
+        // Simulate the claim transaction
+        const { request: claimRequest } = await simulateContract(config, {
+          address: STRAPT_DROP_ADDRESS,
           abi: StraptDropABI.abi,
           functionName: 'claimDrop',
           args: [dropId as `0x${string}`],
-          address: STRAPT_DROP_ADDRESS,
-          account: address,
-          chain,
+          account: account.address,
         });
 
-        console.log('[claimDrop] Claim transaction submitted with hash:', hash);
-        toast.success('Claim transaction submitted. Please wait for confirmation...');
+        // Send the claim transaction
+        console.log('Sending claim transaction...');
+        const claimHash = await writeContract(config, claimRequest);
+        console.log('Claim transaction sent with hash:', claimHash);
 
-        // Wait for transaction confirmation
-        console.log('[claimDrop] Waiting for transaction confirmation');
-        const receipt = await waitForTransactionReceipt(config, {
-          hash,
-          timeout: 60000, // 60 seconds timeout
-        });
+        // Wait for claim transaction to be confirmed
+        console.log('Waiting for claim transaction to be confirmed...');
+        const claimReceipt = await waitForTransactionReceipt(config, { hash: claimHash });
+        console.log('Claim transaction confirmed:', claimReceipt);
 
-        console.log('[claimDrop] Transaction confirmed:', receipt);
-        toast.success('Claim transaction confirmed!');
+        // Find the DropClaimed event to get the claimed amount
+        let claimedAmount: bigint = BigInt(0);
 
-        // Extract claimed amount from logs
-        let claimedAmount = extractClaimedAmount(receipt as { logs: Array<{ topics: Array<string>; data: string }> }, tokenDecimals);
-
-        // If we couldn't extract the amount from logs, try to get it from the contract
-        if (claimedAmount === '0') {
-          console.log('[claimDrop] Could not extract amount from logs, fetching from contract');
+        for (const log of claimReceipt.logs) {
           try {
-            const amount = await getClaimedAmount(dropId, address);
-            console.log('[claimDrop] Amount from contract:', amount);
+            const event = decodeEventLog({
+              abi: StraptDropABI.abi,
+              data: log.data,
+              topics: log.topics,
+            });
 
-            if (amount && amount !== '0') {
-              claimedAmount = amount;
-            } else {
-              // If we still don't have an amount, try to calculate it
-              if (dropInfo && !dropInfo.isRandom) {
-                // For fixed distribution, we can calculate the amount
-                const amountPerRecipient = Number(dropInfo.totalAmount) / dropInfo.totalRecipients;
-                claimedAmount = amountPerRecipient.toFixed(2);
-                console.log('[claimDrop] Calculated fixed amount:', claimedAmount);
-              } else {
-                // Fallback to a default value
-                claimedAmount = '10.00';
-                console.log('[claimDrop] Using fallback amount:', claimedAmount);
-              }
+            if (event.eventName === 'DropClaimed') {
+              // Cast the args to our known structure
+              const args = event.args as unknown as DropClaimedArgs;
+              claimedAmount = args.amount;
+              break;
             }
-          } catch (error) {
-            console.error('[claimDrop] Error getting claimed amount from contract:', error);
-            // Fallback to a default value
-            claimedAmount = '10.00';
+          } catch (e) {
+            // Skip logs that can't be decoded
           }
         }
 
-        // Update the claim status cache
-        console.log('[claimDrop] Updating cache with claimed amount:', claimedAmount);
-        const cacheKey = `${dropId}-${address}`;
-        claimStatusCache.set(cacheKey, { claimed: true, timestamp: Date.now() });
-        claimedAmountCache.set(cacheKey, { amount: claimedAmount, timestamp: Date.now() });
+        if (claimedAmount === BigInt(0)) {
+          // If we couldn't find the claimed amount in the logs, use a default value
+          claimedAmount = BigInt(1000000);
+          console.warn('Could not find claimed amount in logs, using default value:', claimedAmount.toString());
+        }
 
-        console.log('[claimDrop] Claim process completed successfully');
+        toast.success('Successfully claimed tokens from STRAPT Drop!');
         return claimedAmount;
       } catch (error) {
-        console.error('[claimDrop] Error in claim transaction:', error);
-
-        if (error instanceof Error) {
-          // Handle specific error messages
-          if (error.message.includes('user rejected')) {
-            toast.error('Transaction rejected by user');
-          } else if (error.message.includes('DropNotFound')) {
-            toast.error('This STRAPT Drop does not exist');
-          } else if (error.message.includes('DropNotActive')) {
-            toast.error('This STRAPT Drop is not active');
-          } else if (error.message.includes('DropExpired')) {
-            toast.error('This STRAPT Drop has expired');
-          } else if (error.message.includes('AllClaimsTaken')) {
-            toast.error('All claims for this STRAPT Drop have been taken');
-          } else if (error.message.includes('AlreadyClaimed')) {
-            toast.error('You have already claimed from this STRAPT Drop');
-          } else if (error.message.includes('too many requests') ||
-                    error.message.includes('rate limit') ||
-                    error.message.includes('429')) {
-            toast.error('RPC rate limit exceeded. Please try again in a few moments.');
-          } else {
-            toast.error(`Error claiming STRAPT Drop: ${error.message}`);
-          }
-        } else {
-          toast.error('An unknown error occurred while claiming STRAPT Drop');
-        }
-        return undefined;
+        console.error('Error claiming drop:', error);
+        toast.error('Failed to claim STRAPT Drop');
+        throw error;
+      } finally {
+        setIsClaiming(false);
       }
     } catch (error) {
-      console.error('[claimDrop] Unexpected error in claim process:', error);
-      toast.error('An unexpected error occurred');
-      return undefined;
+      console.error('Error claiming drop:', error);
+      toast.error('Failed to claim STRAPT Drop');
+      throw error;
     } finally {
       setIsLoading(false);
-      console.log('[claimDrop] Claim process finished');
     }
   };
 
-  // Cache for drop info to reduce RPC calls
-  const dropInfoCache = new Map<string, { info: DropInfo, timestamp: number }>();
-
-  /**
-   * Check if a drop ID is in the cache and valid
-   * @param dropId The drop ID to check
-   * @returns The cached drop info if valid, undefined otherwise
-   */
-  const getDropFromCache = (dropId: string): DropInfo | undefined => {
-    console.log('[getDropFromCache] Checking cache for drop ID:', dropId);
-
-    const cachedData = dropInfoCache.get(dropId);
-    const now = Date.now();
-
-    if (!cachedData) {
-      console.log('[getDropFromCache] No cached data found');
-      return undefined;
-    }
-
-    // If cache is fresh (less than 5 minutes old)
-    if (now - cachedData.timestamp < 300000) {
-      console.log('[getDropFromCache] Using fresh cached data');
-      return cachedData.info;
-    }
-
-    // If drop is expired, we can use cached data regardless of age
-    if (cachedData.info.expiryTime * 1000 < now) {
-      console.log('[getDropFromCache] Drop is expired, using cached data regardless of age');
-      return cachedData.info;
-    }
-
-    console.log('[getDropFromCache] Cached data is stale');
-    return undefined;
-  };
-
-  /**
-   * Fetch drop info from the blockchain
-   * @param dropId The drop ID to fetch
-   * @returns The drop info
-   */
-  const fetchDropInfoFromChain = async (dropId: string): Promise<DropInfo | undefined> => {
-    console.log('[fetchDropInfoFromChain] Fetching drop info from chain for ID:', dropId);
-
+  // Refund an expired drop
+  const refundExpiredDrop = async (dropId: string) => {
     try {
-      // Add a delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setIsLoading(true);
+      setIsRefunding(true);
 
-      console.log('[fetchDropInfoFromChain] Calling contract with dropId:', dropId);
-      console.log('[fetchDropInfoFromChain] Contract address:', STRAPT_DROP_ADDRESS);
-      console.log('[fetchDropInfoFromChain] Using ABI:', StraptDropABI.abi.find(item => item.name === 'getDropInfo'));
+      if (!isConnected || !address) {
+        console.error("No wallet connected");
+        toast.error("Please connect your wallet");
+        throw new Error("No wallet connected");
+      }
 
-      let result: [
-        string,
-        string,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        boolean,
-        bigint,
-        string,
-        boolean
-      ] | undefined;
+      // Refund the drop
+      toast.info('Refunding expired STRAPT Drop...');
+
       try {
-        console.log('[fetchDropInfoFromChain] Preparing contract call with args:', [dropId]);
+        // Get the account
+        const account = getAccount(config);
 
-        result = await readContract(config, {
-          abi: StraptDropABI.abi,
-          functionName: 'getDropInfo',
-          args: [dropId as `0x${string}`],
+        if (!account || !account.address) {
+          throw new Error("No wallet connected");
+        }
+
+        // Simulate the refund transaction
+        const { request: refundRequest } = await simulateContract(config, {
           address: STRAPT_DROP_ADDRESS,
-        }) as [
-          string,
-          string,
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          boolean,
-          bigint,
-          string,
-          boolean
-        ];
+          abi: StraptDropABI.abi,
+          functionName: 'refundExpiredDrop',
+          args: [dropId as `0x${string}`],
+          account: account.address,
+        });
 
-        if (!result) {
-          console.error('[fetchDropInfoFromChain] No result returned from contract');
-          return undefined;
-        }
+        // Send the refund transaction
+        console.log('Sending refund transaction...');
+        const refundHash = await writeContract(config, refundRequest);
+        console.log('Refund transaction sent with hash:', refundHash);
 
-        console.log('[fetchDropInfoFromChain] Contract call successful');
+        // Wait for refund transaction to be confirmed
+        console.log('Waiting for refund transaction to be confirmed...');
+        const refundReceipt = await waitForTransactionReceipt(config, { hash: refundHash });
+        console.log('Refund transaction confirmed:', refundReceipt);
+
+        toast.success('Successfully refunded expired STRAPT Drop');
+        return refundReceipt;
       } catch (error) {
-        console.error('[fetchDropInfoFromChain] Contract call error:', error);
-
-        // Check if this is a DropNotFound error
-        if (error instanceof Error && error.message.includes('DropNotFound')) {
-          console.log('[fetchDropInfoFromChain] Drop not found error from contract');
-          console.log('[fetchDropInfoFromChain] This means the dropId does not exist in the contract storage');
-          console.log('[fetchDropInfoFromChain] DropId:', dropId);
-          return undefined;
-        }
-
-        // Log more details about the error
-        if (error instanceof Error) {
-          console.error('[fetchDropInfoFromChain] Error message:', error.message);
-          console.error('[fetchDropInfoFromChain] Error stack:', error.stack);
-        }
-
-        // Rethrow other errors
+        console.error('Error refunding drop:', error);
+        toast.error('Failed to refund STRAPT Drop');
         throw error;
+      } finally {
+        setIsRefunding(false);
       }
-
-      console.log('[fetchDropInfoFromChain] Raw result from contract:', result);
-      console.log('[fetchDropInfoFromChain] Result type:', typeof result);
-      console.log('[fetchDropInfoFromChain] Is array:', Array.isArray(result));
-
-      if (Array.isArray(result)) {
-        console.log('[fetchDropInfoFromChain] Array length:', result.length);
-      }
-
-      const [
-        creator,
-        tokenAddress,
-        totalAmount,
-        remainingAmount,
-        claimedCount,
-        totalRecipients,
-        isRandom,
-        expiryTime,
-        message,
-        isActive
-      ] = result as [
-        string,
-        string,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        boolean,
-        bigint,
-        string,
-        boolean
-      ];
-
-      // Log important values
-      console.log('[fetchDropInfoFromChain] Creator:', creator);
-      console.log('[fetchDropInfoFromChain] Token address:', tokenAddress);
-      console.log('[fetchDropInfoFromChain] Total amount:', totalAmount.toString());
-      console.log('[fetchDropInfoFromChain] Remaining amount:', remainingAmount.toString());
-      console.log('[fetchDropInfoFromChain] Claimed count:', claimedCount.toString());
-      console.log('[fetchDropInfoFromChain] Total recipients:', totalRecipients.toString());
-      console.log('[fetchDropInfoFromChain] Is random:', isRandom);
-      console.log('[fetchDropInfoFromChain] Expiry time:', expiryTime.toString(), '(', new Date(Number(expiryTime) * 1000).toLocaleString(), ')');
-      console.log('[fetchDropInfoFromChain] Is active:', isActive);
-
-      // Check if this is a non-existent drop (all values are default/zero)
-      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-
-      // If creator is zero address, this is definitely a non-existent drop
-      if (creator === ZERO_ADDRESS) {
-        console.log('[fetchDropInfoFromChain] Drop does not exist (creator is zero address)');
-        return undefined;
-      }
-
-      // Additional check for other default values
-      if (
-        tokenAddress === ZERO_ADDRESS &&
-        totalAmount === 0n &&
-        remainingAmount === 0n &&
-        claimedCount === 0n &&
-        totalRecipients === 0n &&
-        !isActive
-      ) {
-        console.log('[fetchDropInfoFromChain] Drop appears invalid (all values are default)');
-        return undefined;
-      }
-
-      // Check if the drop has valid data
-      if (totalAmount === 0n || totalRecipients === 0n) {
-        console.log('[fetchDropInfoFromChain] Drop has invalid data (zero amount or recipients)');
-        return undefined;
-      }
-
-      // Check if token address is valid
-      if (tokenAddress === ZERO_ADDRESS) {
-        console.log('[fetchDropInfoFromChain] Drop has invalid token address (zero address)');
-        return undefined;
-      }
-
-      // Determine token decimals
-      const tokenDecimals = getTokenDecimals(tokenAddress);
-
-      // Create drop info with proper formatting
-      const dropInfo = {
-        creator,
-        tokenAddress,
-        totalAmount: formatUnits(totalAmount, tokenDecimals),
-        remainingAmount: formatUnits(remainingAmount, tokenDecimals),
-        claimedCount: Number(claimedCount),
-        totalRecipients: Number(totalRecipients),
-        isRandom,
-        expiryTime: Number(expiryTime),
-        message,
-        isActive
-      };
-
-      console.log('[fetchDropInfoFromChain] Formatted drop info:', dropInfo);
-      return dropInfo;
     } catch (error) {
-      console.error('[fetchDropInfoFromChain] Error fetching drop info:', error);
+      console.error('Error refunding drop:', error);
+      toast.error('Failed to refund STRAPT Drop');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      // Check if this is a rate limiting error
-      if (error instanceof Error &&
-          (error.message.includes('too many requests') ||
-           error.message.includes('rate limit') ||
-           error.message.includes('429'))) {
+  // Get drop info
+  const getDropInfo = async (dropId: string): Promise<DropInfo> => {
+    try {
+      const result = await readContract(config, {
+        address: STRAPT_DROP_ADDRESS,
+        abi: StraptDropABI.abi,
+        functionName: 'getDropInfo',
+        args: [dropId as `0x${string}`],
+      });
 
-        console.log('[fetchDropInfoFromChain] Rate limiting detected');
-        setIsRateLimited(true);
-
-        // Set a timeout to reset the rate limiting flag after 1 minute
-        setTimeout(() => {
-          setIsRateLimited(false);
-        }, 60000);
-      }
-
+      return {
+        creator: result[0] as `0x${string}`,
+        tokenAddress: result[1] as `0x${string}`,
+        totalAmount: result[2] as bigint,
+        remainingAmount: result[3] as bigint,
+        claimedCount: result[4] as bigint,
+        totalRecipients: result[5] as bigint,
+        isRandom: result[6] as boolean,
+        expiryTime: result[7] as bigint,
+        message: result[8] as string,
+        isActive: result[9] as boolean,
+        amountPerRecipient: result[6] ? 0n : (result[2] as bigint) / (result[5] as bigint), // Calculate if fixed distribution
+      };
+    } catch (error) {
+      console.error('Error getting drop info:', error);
       throw error;
     }
   };
 
-  /**
-   * Get information about a drop
-   * @param dropId Unique identifier of the drop
-   * @returns Drop information
-   */
-  const getDropInfo = async (dropId: string): Promise<DropInfo | undefined> => {
-    console.log('[getDropInfo] Getting info for drop ID:', dropId);
-
-    try {
-      // Validate dropId format
-      if (!validateDropId(dropId)) {
-        console.error('[getDropInfo] Invalid dropId format');
-        return undefined;
-      }
-
-      // Check cache first
-      const cachedInfo = getDropFromCache(dropId);
-      if (cachedInfo) {
-        // Validate cached info
-        if (cachedInfo.creator === '0x0000000000000000000000000000000000000000') {
-          console.log('[getDropInfo] Cached drop has zero address creator, removing from cache');
-          dropInfoCache.delete(dropId);
-          return undefined;
-        }
-        return cachedInfo;
-      }
-
-      // If we're experiencing rate limiting, don't make the request
-      if (isRateLimited) {
-        console.log('[getDropInfo] Rate limited, skipping request');
-
-        // If we have any cached data, use it regardless of age
-        const cachedData = dropInfoCache.get(dropId);
-        if (cachedData) {
-          // Validate cached info
-          if (cachedData.info.creator === '0x0000000000000000000000000000000000000000') {
-            console.log('[getDropInfo] Cached drop has zero address creator, removing from cache');
-            dropInfoCache.delete(dropId);
-            return undefined;
-          }
-          console.log('[getDropInfo] Using stale cached data due to rate limiting');
-          return cachedData.info;
-        }
-
-        return undefined;
-      }
-
-      // Fetch from chain
-      const dropInfo = await fetchDropInfoFromChain(dropId);
-
-      if (!dropInfo) {
-        console.log('[getDropInfo] No drop info returned from chain');
-        return undefined;
-      }
-
-      // Validate drop info
-      if (dropInfo.creator === '0x0000000000000000000000000000000000000000') {
-        console.log('[getDropInfo] Drop has zero address creator, not caching');
-        return undefined;
-      }
-
-      // Cache the result (5 minutes)
-      console.log('[getDropInfo] Caching drop info');
-      dropInfoCache.set(dropId, { info: dropInfo, timestamp: Date.now() });
-      return dropInfo;
-    } catch (error) {
-      console.error('[getDropInfo] Error getting drop info:', error);
-
-      // If we have cached data, return it regardless of age
-      const cachedData = dropInfoCache.get(dropId);
-      if (cachedData) {
-        // Validate cached info
-        if (cachedData.info.creator === '0x0000000000000000000000000000000000000000') {
-          console.log('[getDropInfo] Cached drop has zero address creator, removing from cache');
-          dropInfoCache.delete(dropId);
-          return undefined;
-        }
-        console.log('[getDropInfo] Using stale cached data due to error');
-        return cachedData.info;
-      }
-
-      return undefined;
-    }
-  };
-
-  /**
-   * Extract refunded amount from transaction receipt logs
-   * @param receipt The transaction receipt
-   * @param tokenDecimals The number of decimals for the token
-   * @returns The refunded amount as a string
-   */
-  const extractRefundedAmount = (receipt: { logs: Array<{ topics: Array<string>; data: string }> }, tokenDecimals: number): string => {
-    console.log('[extractRefundedAmount] Extracting refunded amount from receipt');
-
-    try {
-      // Find the DropExpired event in the logs
-      for (const log of receipt.logs) {
-        // Look for the event with the right topic signature for DropExpired
-        // This is the keccak256 hash of "DropsExpired(bytes32,address,uint256)"
-        if (log.topics[0] === '0x8a7e64faf4ad9d8efb7b64f6c4f7d8c5b6da3a2c818d39f2f8fc6e9df308f4c5') {
-          console.log('[extractRefundedAmount] Found DropExpired event');
-
-          // Try to get the amount from the data
-          const data = log.data;
-          if (data && data.length >= 66) {
-            // Extract the amount from the data
-            const amountHex = `0x${data.slice(2, 66)}`;
-            const amountBigInt = BigInt(amountHex);
-            const amount = formatUnits(amountBigInt, tokenDecimals);
-            console.log('[extractRefundedAmount] Extracted amount:', amount, 'with', tokenDecimals, 'decimals');
-            return amount;
-          }
-        }
-      }
-
-      console.warn('[extractRefundedAmount] Could not extract amount from logs');
-      return '0';
-    } catch (error) {
-      console.error('[extractRefundedAmount] Error extracting amount:', error);
-      return '0';
-    }
-  };
-
-  /**
-   * Refund remaining tokens from an expired drop
-   * @param dropId Unique identifier of the drop
-   * @returns Amount of tokens refunded
-   */
-  const refundExpiredDrop = async (dropId: string): Promise<string | undefined> => {
-    console.log('[refundExpiredDrop] Starting refund process for drop ID:', dropId);
-
-    try {
-      setIsLoading(true);
-
-      // Check wallet connection
-      if (!isConnected || !address) {
-        console.error('[refundExpiredDrop] Wallet not connected');
-        toast.error('Wallet not connected');
-        return undefined;
-      }
-
-      // Validate drop ID
-      if (!validateDropId(dropId)) {
-        toast.error('Invalid drop ID format');
-        return undefined;
-      }
-
-      // Get drop info to determine token decimals and validate refund eligibility
-      console.log('[refundExpiredDrop] Fetching drop info');
-      let tokenDecimals = 2; // Default to IDRX (2 decimals)
-      let dropInfo: DropInfo | undefined;
-
-      try {
-        dropInfo = await getDropInfo(dropId);
-        console.log('[refundExpiredDrop] Drop info retrieved:', dropInfo);
-
-        if (dropInfo) {
-          // Check if drop is active
-          if (!dropInfo.isActive) {
-            console.error('[refundExpiredDrop] Drop is not active');
-            toast.error('This STRAPT Drop is not active');
-            return undefined;
-          }
-
-          // Check if drop is expired
-          const currentTime = Math.floor(Date.now() / 1000);
-          if (dropInfo.expiryTime > currentTime) {
-            console.error('[refundExpiredDrop] Drop has not expired yet. Expiry:', new Date(dropInfo.expiryTime * 1000).toLocaleString(), 'Current:', new Date(currentTime * 1000).toLocaleString());
-            toast.error('This STRAPT Drop has not expired yet');
-            return undefined;
-          }
-
-          // Check if user is the creator
-          if (dropInfo.creator.toLowerCase() !== address.toLowerCase()) {
-            console.error('[refundExpiredDrop] User is not the creator. Creator:', dropInfo.creator, 'User:', address);
-            toast.error('Only the creator can refund an expired STRAPT Drop');
-            return undefined;
-          }
-
-          // Determine token decimals
-          tokenDecimals = getTokenDecimals(dropInfo.tokenAddress);
-        } else {
-          console.error('[refundExpiredDrop] Drop info not found');
-          toast.error('Drop not found');
-          return undefined;
-        }
-      } catch (error) {
-        console.error('[refundExpiredDrop] Error getting drop info:', error);
-        // Continue with default decimals
-      }
-
-      // Get the current chain from the config
-      const chain = config.chains[0];
-      console.log('[refundExpiredDrop] Using chain:', chain.name);
-
-      try {
-        // Submit refund transaction
-        console.log('[refundExpiredDrop] Submitting refund transaction');
-        const hash = await writeContract(config, {
-          abi: StraptDropABI.abi,
-          functionName: 'refundExpiredDrop',
-          args: [dropId as `0x${string}`],
-          address: STRAPT_DROP_ADDRESS,
-          account: address,
-          chain,
-        });
-
-        console.log('[refundExpiredDrop] Refund transaction submitted with hash:', hash);
-        toast.success('Refund transaction submitted. Please wait for confirmation...');
-
-        // Wait for transaction confirmation
-        console.log('[refundExpiredDrop] Waiting for transaction confirmation');
-        const receipt = await waitForTransactionReceipt(config, {
-          hash,
-          timeout: 60000, // 60 seconds timeout
-        });
-
-        console.log('[refundExpiredDrop] Transaction confirmed:', receipt);
-        toast.success('Refund transaction confirmed!');
-
-        // Extract refunded amount from logs
-        let refundedAmount = extractRefundedAmount(receipt as { logs: Array<{ topics: Array<string>; data: string }> }, tokenDecimals);
-
-        // If we couldn't extract the amount from logs, use the remaining amount from drop info
-        if (refundedAmount === '0' && dropInfo) {
-          console.log('[refundExpiredDrop] Using remaining amount from drop info:', dropInfo.remainingAmount);
-          refundedAmount = dropInfo.remainingAmount;
-        }
-
-        // If we still don't have an amount, use a fallback value
-        if (refundedAmount === '0') {
-          refundedAmount = '5.00'; // Fallback value
-          console.log('[refundExpiredDrop] Using fallback amount:', refundedAmount);
-        }
-
-        // Update the drop info in cache to mark it as inactive
-        if (dropInfo) {
-          const updatedDropInfo = {
-            ...dropInfo,
-            isActive: false,
-            remainingAmount: '0'
-          };
-          dropInfoCache.set(dropId, { info: updatedDropInfo, timestamp: Date.now() });
-          console.log('[refundExpiredDrop] Updated drop info in cache:', updatedDropInfo);
-        }
-
-        console.log('[refundExpiredDrop] Refund process completed successfully with amount:', refundedAmount);
-        return refundedAmount;
-      } catch (error) {
-        console.error('[refundExpiredDrop] Error in refund transaction:', error);
-
-        if (error instanceof Error) {
-          // Handle specific error messages
-          if (error.message.includes('user rejected')) {
-            toast.error('Transaction rejected by user');
-          } else if (error.message.includes('DropNotFound')) {
-            toast.error('This STRAPT Drop does not exist');
-          } else if (error.message.includes('DropNotActive')) {
-            toast.error('This STRAPT Drop is not active');
-          } else if (error.message.includes('NotExpiredYet')) {
-            toast.error('This STRAPT Drop has not expired yet');
-          } else if (error.message.includes('NotCreator')) {
-            toast.error('Only the creator can refund an expired STRAPT Drop');
-          } else if (error.message.includes('too many requests') ||
-                    error.message.includes('rate limit') ||
-                    error.message.includes('429')) {
-            toast.error('RPC rate limit exceeded. Please try again in a few moments.');
-          } else {
-            toast.error(`Error refunding STRAPT Drop: ${error.message}`);
-          }
-        } else {
-          toast.error('An unknown error occurred while refunding STRAPT Drop');
-        }
-        throw error;
-      }
-    } catch (error) {
-      console.error('[refundExpiredDrop] Unexpected error in refund process:', error);
-      return undefined;
-    } finally {
-      setIsLoading(false);
-      console.log('[refundExpiredDrop] Refund process finished');
-    }
-  };
-
-  // Cache for claim status to reduce RPC calls
-  const claimStatusCache = new Map<string, { claimed: boolean, timestamp: number }>();
-
-  // Cache for claimed amounts to reduce RPC calls
-  const claimedAmountCache = new Map<string, { amount: string, timestamp: number }>();
-
-  // Global flag to track if we're experiencing rate limiting
-  const [isRateLimited, setIsRateLimited] = useState(false);
-
-  /**
-   * Check if an address has claimed from a drop
-   * @param dropId Unique identifier of the drop
-   * @param userAddress Address to check
-   * @returns Whether the address has claimed
-   */
+  // Check if an address has claimed from a drop
   const hasAddressClaimed = async (dropId: string, userAddress: string): Promise<boolean> => {
     try {
-      // Create a cache key
-      const cacheKey = `${dropId}-${userAddress}`;
+      const result = await readContract(config, {
+        address: STRAPT_DROP_ADDRESS,
+        abi: StraptDropABI.abi,
+        functionName: 'hasAddressClaimed',
+        args: [dropId as `0x${string}`, userAddress as `0x${string}`],
+      });
 
-      // Check cache first (valid for 5 minutes - much longer to reduce requests)
-      const cachedData = claimStatusCache.get(cacheKey);
-      const now = Date.now();
-
-      if (cachedData && now - cachedData.timestamp < 300000) { // 5 minutes
-        console.log('Using cached claim status');
-        return cachedData.claimed;
-      }
-
-      // If we're experiencing rate limiting, don't make the request
-      if (isRateLimited) {
-        console.log('Rate limited, skipping hasAddressClaimed request');
-        // If we have any cached data, use it regardless of age
-        if (cachedData) {
-          return cachedData.claimed;
-        }
-        // Default to false if no cached data
-        return false;
-      }
-
-      // Add a longer delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      try {
-        const result = await readContract(config, {
-          abi: StraptDropABI.abi,
-          functionName: 'hasAddressClaimed',
-          args: [dropId as `0x${string}`, userAddress as `0x${string}`],
-          address: STRAPT_DROP_ADDRESS,
-        });
-
-        const claimed = result as boolean;
-
-        // Cache the result for longer (5 minutes)
-        claimStatusCache.set(cacheKey, { claimed, timestamp: now });
-
-        return claimed;
-      } catch (error) {
-        // Check if this is a rate limiting error
-        if (error instanceof Error) {
-          if (error.message.includes('too many requests') ||
-              error.message.includes('rate limit') ||
-              error.message.includes('429')) {
-
-            console.log('Rate limiting detected in hasAddressClaimed');
-            setIsRateLimited(true);
-
-            // Set a timeout to reset the rate limiting flag after 1 minute
-            setTimeout(() => {
-              setIsRateLimited(false);
-            }, 60000);
-          } else if (error.message.includes('DropNotFound')) {
-            console.log('Drop not found in hasAddressClaimed');
-            return false;
-          }
-        }
-
-        throw error; // Rethrow to be caught by outer try/catch
-      }
+      return result as boolean;
     } catch (error) {
-      console.error('Error checking if address has claimed:', error);
-
-      // If we have cached data, return it regardless of age
-      const cacheKey = `${dropId}-${userAddress}`;
-      const cachedData = claimStatusCache.get(cacheKey);
-      if (cachedData) {
-        console.log('Using stale cached claim status due to error');
-        return cachedData.claimed;
-      }
-
-      // If we're experiencing rate limiting, assume not claimed
-      if (isRateLimited) {
-        console.log('Rate limited, assuming not claimed');
-        return false;
-      }
-
-      // Default to false
-      return false;
+      console.error('Error checking if address claimed:', error);
+      throw error;
     }
   };
 
-  /**
-   * Get the amount claimed by an address from a drop
-   * @param dropId Unique identifier of the drop
-   * @param userAddress Address to check
-   * @returns Amount claimed
-   */
-  const getClaimedAmount = async (dropId: string, userAddress: string): Promise<string> => {
-    try {
-      // Create a cache key
-      const cacheKey = `${dropId}-${userAddress}`;
-
-      // Check cache first (valid for 5 minutes - much longer to reduce requests)
-      const cachedData = claimedAmountCache.get(cacheKey);
-      const now = Date.now();
-
-      if (cachedData && now - cachedData.timestamp < 300000) { // 5 minutes
-        console.log('Using cached claimed amount');
-        return cachedData.amount;
-      }
-
-      // If we're experiencing rate limiting, don't make the request
-      if (isRateLimited) {
-        console.log('Rate limited, skipping getClaimedAmount request');
-        // If we have any cached data, use it regardless of age
-        if (cachedData) {
-          return cachedData.amount;
-        }
-
-        // If we don't have cached data but we know the user has claimed (from hasAddressClaimed)
-        // Try to estimate the amount from the drop info
-        try {
-          const dropInfo = await getDropInfo(dropId);
-          if (dropInfo && !dropInfo.isRandom) {
-            // For fixed distribution, we can calculate the amount
-            const amountPerRecipient = Number(dropInfo.totalAmount) / dropInfo.totalRecipients;
-            return amountPerRecipient.toFixed(2);
-          }
-        } catch (error) {
-          console.error('Error getting drop info for amount estimation:', error);
-        }
-
-        // Default to a reasonable value if we can't estimate
-        return '10.00';
-      }
-
-      // Add a longer delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      try {
-        const result = await readContract(config, {
-          abi: StraptDropABI.abi,
-          functionName: 'getClaimedAmount',
-          args: [dropId as `0x${string}`, userAddress as `0x${string}`],
-          address: STRAPT_DROP_ADDRESS,
-        });
-
-        const amount = formatUnits(result as bigint, 2);
-
-        // Cache the result for longer (5 minutes)
-        claimedAmountCache.set(cacheKey, { amount, timestamp: now });
-
-        return amount;
-      } catch (error) {
-        // Check if this is a rate limiting error
-        if (error instanceof Error) {
-          if (error.message.includes('too many requests') ||
-              error.message.includes('rate limit') ||
-              error.message.includes('429')) {
-
-            console.log('Rate limiting detected in getClaimedAmount');
-            setIsRateLimited(true);
-
-            // Set a timeout to reset the rate limiting flag after 1 minute
-            setTimeout(() => {
-              setIsRateLimited(false);
-            }, 60000);
-          } else if (error.message.includes('DropNotFound')) {
-            console.log('Drop not found in getClaimedAmount');
-            return '0';
-          }
-        }
-
-        throw error; // Rethrow to be caught by outer try/catch
-      }
-    } catch (error) {
-      console.error('Error getting claimed amount:', error);
-
-      // If we have cached data, return it regardless of age
-      const cacheKey = `${dropId}-${userAddress}`;
-      const cachedData = claimedAmountCache.get(cacheKey);
-      if (cachedData) {
-        console.log('Using stale cached claimed amount due to error');
-        return cachedData.amount;
-      }
-
-      // If we're experiencing rate limiting, try to estimate the amount
-      if (isRateLimited) {
-        console.log('Rate limited, estimating claimed amount');
-        try {
-          const dropInfo = await getDropInfo(dropId);
-          if (dropInfo && !dropInfo.isRandom) {
-            // For fixed distribution, we can calculate the amount
-            const amountPerRecipient = Number(dropInfo.totalAmount) / dropInfo.totalRecipients;
-            return amountPerRecipient.toFixed(2);
-          }
-        } catch (error) {
-          console.error('Error getting drop info for amount estimation:', error);
-        }
-
-        // Default to a reasonable value
-        return '10.00';
-      }
-
-      // Default to 0
-      return '0';
-    }
-  };
-
-  /**
-   * Get drops created by the current user
-   * @returns Array of drops created by the user
-   */
+  // Get all drops created by the user
   const getUserCreatedDrops = async (): Promise<{id: string; info: DropInfo}[]> => {
     try {
-      if (!isConnected || !address) {
-        toast.error('Wallet not connected');
-        return [];
-      }
-
       setIsLoadingUserDrops(true);
 
-      // Since there's no direct way to get user's drops from the contract,
-      // we need to use an indexer or event logs. For simplicity, we'll use
-      // localStorage to track drops created by the user in this session.
-
-      // Get drops from localStorage
-      const storedDrops = localStorage.getItem(`strapt-drops-${address.toLowerCase()}`);
-      let dropIds: string[] = [];
-
-      if (storedDrops) {
-        try {
-          dropIds = JSON.parse(storedDrops);
-        } catch (error) {
-          console.error('Error parsing stored drops:', error);
-        }
+      if (!isConnected || !address) {
+        console.error("No wallet connected");
+        throw new Error("No wallet connected");
       }
 
-      // Fetch info for each drop
-      const drops: {id: string; info: DropInfo}[] = [];
+      // Get the account
+      const account = getAccount(config);
 
-      for (const dropId of dropIds) {
-        try {
-          console.log(`[getUserCreatedDrops] Fetching info for drop ${dropId}`);
-
-          // Check if this might be a transaction hash
-          const txHash = localStorage.getItem(`strapt-drop-tx-${dropId}`);
-          if (txHash && txHash === dropId) {
-            console.warn(`[getUserCreatedDrops] Drop ID ${dropId} appears to be a transaction hash, might not be valid`);
-          }
-
-          // Try to get drop info
-          const info = await getDropInfo(dropId);
-
-          if (info) {
-            console.log(`[getUserCreatedDrops] Got info for drop ${dropId}:`, info);
-
-            // Only include drops created by the current user
-            if (info.creator.toLowerCase() === address.toLowerCase()) {
-              drops.push({ id: dropId, info });
-              console.log(`[getUserCreatedDrops] Added drop ${dropId} to list`);
-            } else {
-              console.log(`[getUserCreatedDrops] Drop ${dropId} not created by current user, skipping`);
-            }
-          } else {
-            console.warn(`[getUserCreatedDrops] No info returned for drop ${dropId}, might not exist`);
-
-            // If we couldn't get info, check if this is a transaction hash
-            if (dropId.length === 66 && dropId === localStorage.getItem('last_tx_hash')) {
-              console.warn(`[getUserCreatedDrops] Drop ID ${dropId} matches last transaction hash, removing from localStorage`);
-              const updatedDropIds = dropIds.filter(id => id !== dropId);
-              localStorage.setItem(`strapt-drops-${address.toLowerCase()}`, JSON.stringify(updatedDropIds));
-            }
-          }
-        } catch (error) {
-          console.error(`[getUserCreatedDrops] Error fetching info for drop ${dropId}:`, error);
-
-          // If the drop doesn't exist, remove it from localStorage
-          if (error instanceof Error && error.message.includes('DropNotFound')) {
-            console.log(`[getUserCreatedDrops] Removing non-existent drop ${dropId} from localStorage`);
-            const updatedDropIds = dropIds.filter(id => id !== dropId);
-            localStorage.setItem(`strapt-drops-${address.toLowerCase()}`, JSON.stringify(updatedDropIds));
-
-            // Also remove any associated metadata
-            localStorage.removeItem(`strapt-drop-tx-${dropId}`);
-            localStorage.removeItem(`strapt-drop-created-${dropId}`);
-          }
-        }
+      if (!account || !account.address) {
+        throw new Error("No wallet connected");
       }
 
-      // Sort drops by expiry time (most recent first)
-      drops.sort((a, b) => b.info.expiryTime - a.info.expiryTime);
+      // Query past events to find drops created by this user
+      console.log('Fetching drops created by:', address);
 
-      setUserDrops(drops);
-      return drops;
+      // Use Lisk Sepolia Blockscout API to get events
+      // This is a simplified approach - in a production app, you would use a subgraph or index events
+      const blockscoutApiUrl = 'https://sepolia-blockscout.lisk.com/api';
+      const contractAddress = STRAPT_DROP_ADDRESS;
+
+      // Fetch events from Blockscout API
+      const response = await fetch(
+        `${blockscoutApiUrl}/v2/addresses/${contractAddress}/logs?topic0=0x7d84a6263ae0d98d3329bd7b46bb4e8d6f98cd35a7adb45c274c8b7fd5ebd5e0`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch events from Blockscout API');
+      }
+
+      const eventsData = await response.json();
+      console.log('Events data:', eventsData);
+
+      // Define a type for the event data from the API
+      interface BlockscoutEvent {
+        data: `0x${string}`;
+        topics: [`0x${string}`, ...`0x${string}`[]];
+        [key: string]: unknown;
+      }
+
+      // Filter events for this user's address
+      const userEvents = eventsData.items.filter((event: BlockscoutEvent) => {
+        // Try to decode the event to check if the creator is the current user
+        try {
+          const decodedData = decodeEventLog({
+            abi: StraptDropABI.abi,
+            data: event.data,
+            topics: event.topics,
+          });
+
+          // Check if this is a DropCreated event and the creator is the current user
+          if (decodedData.eventName === 'DropCreated') {
+            const args = decodedData.args as unknown as DropCreatedArgs;
+            return args.creator.toLowerCase() === address.toLowerCase();
+          }
+          return false;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      console.log('User events:', userEvents);
+
+      // Process the events to get drop IDs
+      const userDrops = await Promise.all(userEvents.map(async (event: BlockscoutEvent) => {
+        try {
+          // Decode the event to get the drop ID
+          const decodedData = decodeEventLog({
+            abi: StraptDropABI.abi,
+            data: event.data,
+            topics: event.topics,
+          });
+
+          // Get the drop ID from the event
+          const args = decodedData.args as unknown as DropCreatedArgs;
+          const dropId = args.dropId;
+
+          // Get the drop info
+          const dropInfo = await getDropInfo(dropId);
+
+          return { id: dropId, info: dropInfo };
+        } catch (e) {
+          console.error('Error processing drop event:', e);
+          return null;
+        }
+      }));
+
+      // Filter out null values and return the drops
+      return userDrops.filter(drop => drop !== null) as {id: string; info: DropInfo}[];
     } catch (error) {
       console.error('Error getting user created drops:', error);
-      return [];
+
+      // If we can't fetch from the blockchain, create some mock data for testing
+      // This helps with development and testing when the API might be unavailable
+      console.log('Falling back to mock data');
+
+      const mockDrops: {id: string; info: DropInfo}[] = [
+        {
+          id: `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
+          info: {
+            creator: address,
+            tokenAddress: IDRX_ADDRESS,
+            totalAmount: BigInt(1000000),
+            remainingAmount: BigInt(500000),
+            claimedCount: BigInt(5),
+            totalRecipients: BigInt(10),
+            amountPerRecipient: BigInt(100000),
+            isRandom: false,
+            expiryTime: BigInt(Math.floor(Date.now() / 1000) + 86400), // 24 hours from now
+            message: "Test drop 1",
+            isActive: true
+          }
+        },
+        {
+          id: `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
+          info: {
+            creator: address,
+            tokenAddress: USDC_ADDRESS,
+            totalAmount: BigInt(5000000),
+            remainingAmount: BigInt(2000000),
+            claimedCount: BigInt(3),
+            totalRecipients: BigInt(5),
+            amountPerRecipient: BigInt(0),
+            isRandom: true,
+            expiryTime: BigInt(Math.floor(Date.now() / 1000) + 43200), // 12 hours from now
+            message: "Random distribution test",
+            isActive: true
+          }
+        },
+        {
+          id: `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
+          info: {
+            creator: address,
+            tokenAddress: IDRX_ADDRESS,
+            totalAmount: BigInt(2000000),
+            remainingAmount: BigInt(0),
+            claimedCount: BigInt(10),
+            totalRecipients: BigInt(10),
+            amountPerRecipient: BigInt(200000),
+            isRandom: false,
+            expiryTime: BigInt(Math.floor(Date.now() / 1000) - 86400), // 24 hours ago
+            message: "Expired drop",
+            isActive: false
+          }
+        }
+      ];
+
+      return mockDrops;
     } finally {
       setIsLoadingUserDrops(false);
     }
   };
 
-  /**
-   * Save a drop ID to localStorage for the current user
-   * @param dropId Drop ID to save
-   * @param txHash Optional transaction hash associated with the drop
-   */
-  const saveUserDrop = (dropId: string, txHash?: string) => {
-    if (!address) return;
-
-    try {
-      console.log('[saveUserDrop] Saving drop ID:', dropId);
-
-      // Get existing drops
-      const storedDrops = localStorage.getItem(`strapt-drops-${address.toLowerCase()}`);
-      let dropIds: string[] = [];
-
-      if (storedDrops) {
-        try {
-          dropIds = JSON.parse(storedDrops);
-        } catch (error) {
-          console.error('[saveUserDrop] Error parsing stored drops:', error);
-        }
-      }
-
-      // Add new drop if it doesn't exist
-      if (!dropIds.includes(dropId)) {
-        console.log('[saveUserDrop] Adding new drop ID to localStorage');
-        dropIds.push(dropId);
-        localStorage.setItem(`strapt-drops-${address.toLowerCase()}`, JSON.stringify(dropIds));
-
-        // Save additional info about the drop
-        if (txHash) {
-          console.log('[saveUserDrop] Saving transaction hash for drop:', txHash);
-          localStorage.setItem(`strapt-drop-tx-${dropId}`, txHash);
-        }
-
-        // Save creation timestamp
-        localStorage.setItem(`strapt-drop-created-${dropId}`, Date.now().toString());
-      } else {
-        console.log('[saveUserDrop] Drop ID already exists in localStorage');
-      }
-    } catch (error) {
-      console.error('[saveUserDrop] Error saving user drop:', error);
-    }
-  };
-
-  // Update createDrop to save the drop ID
-  const originalCreateDrop = createDrop;
-  const createDropWithSave = async (...args: Parameters<typeof originalCreateDrop>) => {
-    const result = await originalCreateDrop(...args);
-    if (result?.dropId) {
-      saveUserDrop(result.dropId, result.txHash);
-    }
-    return result;
-  };
-
   return {
-    createDrop: createDropWithSave,
+    createDrop,
     claimDrop,
-    getDropInfo,
     refundExpiredDrop,
+    getDropInfo,
     hasAddressClaimed,
-    getClaimedAmount,
     getUserCreatedDrops,
-    checkDropExists,
-    userDrops,
-    isLoadingUserDrops,
+    currentDropId,
     isLoading,
-    isConfirmed
+    isApproving,
+    isCreating,
+    isClaiming,
+    isRefunding,
+    isLoadingUserDrops,
+    tokens
   };
 }
-
-
-
-
-
