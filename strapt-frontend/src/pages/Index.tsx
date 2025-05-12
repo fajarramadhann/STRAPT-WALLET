@@ -48,15 +48,15 @@ const Index = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-10 pb-20 px-20">
-        <div className="max-w-7xl mx-auto ps-16">
+      <section className="pt-10 pb-20 px-4">
+      <div className="max-w-7xl mx-auto">
           <div className="md:flex md:items-center md:space-x-12">
             <div className="text-center md:text-left md:w-1/2 mb-8 md:mb-0">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 gradient-text">
-                Send It,  Stream It. STRAPT It.
+                Send It, Stream It, STRAPT It.
               </h1>
               <p className="text-lg text-muted-foreground mb-8 max-w-2xl">
-                Trustless crypto transfers and smart payments — with IDRX.
+                Trustless crypto transfers and smart payments with IDRX.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start mb-8">
                 <ConnectButton
