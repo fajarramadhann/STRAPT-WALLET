@@ -30,8 +30,8 @@ const DesktopLayout = () => {
   const navItems = [
     { name: 'Home', path: '', icon: Home },
     { name: 'Transfer', path: 'transfer', icon: ArrowUp },
-    { name: 'Streams', path: 'streams', icon: BarChart2 },
-    { name: 'Pools', path: 'pools', icon: Users },
+    { name: 'Pay Streams', path: 'streams', icon: BarChart2 },
+    { name: 'STRAPT Drop', path: 'strapt-drop', icon: Users },
     { name: 'Claims', path: 'claims', icon: Shield },
     { name: 'Savings', path: 'savings', icon: Wallet },
   ];

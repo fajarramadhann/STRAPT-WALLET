@@ -9,9 +9,9 @@ const BottomNav = () => {
 
   const navItems = [
     { name: 'Home', path: '', icon: Home },
-    { name: 'Streams', path: 'streams', icon: BarChart2 },
+    { name: 'Pay Streams', path: 'streams', icon: BarChart2 },
     { name: 'Savings', path: 'savings', icon: Wallet },
-    { name: 'Pools', path: 'pools', icon: Users },
+    { name: 'STRAPT Drop', path: 'strapt-drop', icon: Users },
     { name: 'Profile', path: 'profile', icon: User },
   ];
 

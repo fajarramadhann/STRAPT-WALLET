@@ -12,6 +12,9 @@ import Home from "./pages/Home";
 import Transfer from "./pages/Transfer";
 import Streams from "./pages/Streams";
 import Pools from "./pages/Pools";
+import StraptDrop from "./pages/StraptDrop";
+import StraptDropClaim from "./pages/StraptDropClaim";
+import MyDrops from "./pages/MyDrops";
 import Profile from "./pages/Profile";
 import Claims from "./pages/Claims";
 import Savings from "./pages/Savings";
@@ -41,6 +44,9 @@ const App = () => {
                   <Route path="streams" element={<Streams />} />
                   <Route path="savings" element={<Savings />} />
                   <Route path="pools" element={<Pools />} />
+                  <Route path="strapt-drop" element={<StraptDrop />} />
+                  <Route path="strapt-drop/claim" element={<StraptDropClaim />} />
+                  <Route path="strapt-drop/my-drops" element={<MyDrops />} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="claims" element={<Claims />} />
                   <Route path="coming-soon" element={<ComingSoon />} />
