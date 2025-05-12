@@ -152,15 +152,31 @@ export function useStraptDrop() {
 
           // Send the approval transaction
           console.log('Sending approval transaction...');
-          const approveHash = await writeContract(config, approveRequest);
-          console.log('Approval transaction sent with hash:', approveHash);
+          try {
+            const approveHash = await writeContract(config, approveRequest);
+            console.log('Approval transaction sent with hash:', approveHash);
 
-          // Wait for approval transaction to be confirmed
-          console.log('Waiting for approval transaction to be confirmed...');
-          const approveReceipt = await waitForTransactionReceipt(config, { hash: approveHash });
-          console.log('Approval transaction confirmed:', approveReceipt);
+            // Wait for approval transaction to be confirmed
+            console.log('Waiting for approval transaction to be confirmed...');
+            const approveReceipt = await waitForTransactionReceipt(config, { hash: approveHash });
+            console.log('Approval transaction confirmed:', approveReceipt);
 
-          toast.success(`Approved ${tokenType} for transfer`);
+            toast.success(`Approved ${tokenType} for transfer`);
+          } catch (error) {
+            // If the user rejected the transaction, don't show an error
+            if (error.message?.includes('rejected') ||
+                error.message?.includes('denied') ||
+                error.message?.includes('cancelled') ||
+                error.message?.includes('user rejected')) {
+              console.log('User rejected approval transaction:', error);
+              // Return early without showing error
+              setIsApproving(false);
+              setIsLoading(false);
+              return null;
+            }
+            // For other errors, rethrow
+            throw error;
+          }
         } catch (error) {
           console.error('Error approving token:', error);
           toast.error('Failed to approve token');
@@ -193,13 +209,30 @@ export function useStraptDrop() {
 
         // Send the create drop transaction
         console.log('Sending create drop transaction...');
-        const createHash = await writeContract(config, createRequest);
-        console.log('Create drop transaction sent with hash:', createHash);
+        let createReceipt;
+        try {
+          const createHash = await writeContract(config, createRequest);
+          console.log('Create drop transaction sent with hash:', createHash);
 
-        // Wait for create drop transaction to be confirmed
-        console.log('Waiting for create drop transaction to be confirmed...');
-        const createReceipt = await waitForTransactionReceipt(config, { hash: createHash });
-        console.log('Create drop transaction confirmed:', createReceipt);
+          // Wait for create drop transaction to be confirmed
+          console.log('Waiting for create drop transaction to be confirmed...');
+          createReceipt = await waitForTransactionReceipt(config, { hash: createHash });
+          console.log('Create drop transaction confirmed:', createReceipt);
+        } catch (error) {
+          // If the user rejected the transaction, don't show an error
+          if (error.message?.includes('rejected') ||
+              error.message?.includes('denied') ||
+              error.message?.includes('cancelled') ||
+              error.message?.includes('user rejected')) {
+            console.log('User rejected transaction:', error);
+            // Return early without showing error
+            setIsCreating(false);
+            setIsLoading(false);
+            return null;
+          }
+          // For other errors, rethrow
+          throw error;
+        }
 
         // Find the DropCreated event to get the drop ID
         let dropId: `0x${string}` | null = null;
@@ -209,7 +242,7 @@ export function useStraptDrop() {
             const event = decodeEventLog({
               abi: StraptDropABI.abi,
               data: log.data,
-              topics: log.topics,
+              topics: log.topics as any,
             });
 
             if (event.eventName === 'DropCreated') {
@@ -300,7 +333,7 @@ export function useStraptDrop() {
             const event = decodeEventLog({
               abi: StraptDropABI.abi,
               data: log.data,
-              topics: log.topics,
+              topics: log.topics as any,
             });
 
             if (event.eventName === 'DropClaimed') {

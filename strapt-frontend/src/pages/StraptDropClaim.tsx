@@ -390,13 +390,6 @@ const StraptDropClaim = () => {
                   <ChevronLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
-                <Button
-                  size="lg"
-                  onClick={() => setShowScanner(true)}
-                >
-                  <QrCode className="h-4 w-4 mr-2" />
-                  Scan QR Code
-                </Button>
               </div>
             </CardContent>
           </Card>

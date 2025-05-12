@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 import { Switch } from '@/components/ui/switch';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useXellarWallet } from '@/hooks/use-xellar-wallet';
 import { useStraptDrop } from '@/hooks/use-strapt-drop';
 import type { TokenType } from '@/hooks/use-strapt-drop';
@@ -20,7 +20,7 @@ import TokenSelect from '@/components/TokenSelect';
 
 const StraptDrop = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+
   const { isConnected, address } = useXellarWallet();
   const { createDrop, isLoading, isApproving, isCreating, currentDropId } = useStraptDrop();
   const { tokens } = useTokenBalances();
@@ -87,10 +87,7 @@ const StraptDrop = () => {
     e.preventDefault();
 
     if (!isConnected) {
-      toast({
-        title: 'Wallet Not Connected',
-        description: 'Please connect your wallet to create a STRAPT Drop'
-      });
+      toast.error('Please connect your wallet to create a STRAPT Drop');
       return;
     }
 
@@ -99,7 +96,7 @@ const StraptDrop = () => {
     }
 
     try {
-      await createDrop(
+      const result = await createDrop(
         tokenType,
         amount,
         Number.parseInt(recipients),
@@ -107,12 +104,25 @@ const StraptDrop = () => {
         expiryHours,
         "" // Empty message
       );
+
+      // If result is null, it means the user rejected the transaction
+      // In this case, we don't want to show an error
+      if (result === null) {
+        console.log('User rejected transaction, not showing error');
+        return;
+      }
     } catch (error) {
-      console.error('Error creating drop:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create STRAPT Drop. Please try again.'
-      });
+      // Only show error toast if it's not a user rejection
+      if (error instanceof Error &&
+          !(error.message?.includes('rejected') ||
+            error.message?.includes('denied') ||
+            error.message?.includes('cancelled') ||
+            error.message?.includes('user rejected'))) {
+        console.error('Error creating drop:', error);
+        toast.error('Failed to create STRAPT Drop. Please try again.');
+      } else {
+        console.log('User rejected transaction, not showing error');
+      }
     }
   };
 
@@ -343,10 +353,7 @@ const StraptDrop = () => {
                 variant="outline"
                 onClick={() => {
                   navigator.clipboard.writeText(dropLink);
-                  toast({
-                    title: 'Success',
-                    description: 'Link copied to clipboard'
-                  });
+                  toast.success('Link copied to clipboard');
                 }}
               >
                 Copy

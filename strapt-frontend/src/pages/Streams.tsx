@@ -744,12 +744,6 @@ const Streams = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Start streaming payments to someone
                   </p>
-                  <Button
-                    onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-1"
-                  >
-                    <PlusCircle className="h-4 w-4" /> New Stream
-                  </Button>
                 </div>
               )}
             </TabsContent>

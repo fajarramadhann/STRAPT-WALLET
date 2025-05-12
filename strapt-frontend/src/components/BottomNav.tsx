@@ -8,11 +8,11 @@ const BottomNav = () => {
   const path = location.pathname.split('/')[2] || '';
 
   const navItems = [
-    { name: 'Home', path: '', icon: Home },
-    { name: 'Pay Streams', path: 'streams', icon: BarChart2 },
-    { name: 'Savings', path: 'savings', icon: Wallet },
-    { name: 'STRAPT Drop', path: 'strapt-drop', icon: Users },
-    { name: 'Profile', path: 'profile', icon: User },
+    { name: 'Home', shortName: 'Home', path: '', icon: Home },
+    { name: 'Pay Streams', shortName: 'Streams', path: 'streams', icon: BarChart2 },
+    { name: 'Savings', shortName: 'Savings', path: 'savings', icon: Wallet },
+    { name: 'STRAPT Drop', shortName: 'Drop', path: 'strapt-drop', icon: Users },
+    { name: 'Profile', shortName: 'Profile', path: 'profile', icon: User },
   ];
 
   return (
@@ -30,7 +30,10 @@ const BottomNav = () => {
               )}
             >
               <item.icon className={cn('h-5 w-5 mb-1', isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]')} />
-              <span className={cn('text-xs', isActive ? 'font-medium' : 'font-normal')}>{item.name}</span>
+              <span className={cn('text-xs', isActive ? 'font-medium' : 'font-normal')}>
+                <span className="hidden sm:inline">{item.name}</span>
+                <span className="sm:hidden">{item.shortName}</span>
+              </span>
             </Link>
           );
         })}

@@ -180,19 +180,19 @@ const Home = () => {
             )}
           </div>
           <div className="flex justify-center gap-4 mt-4">
+          <Button
+              variant="secondary"
+              className="flex items-center gap-2 rounded-xl"
+              onClick={() => navigate("/app/transfer")}
+            >
+              <ArrowUp className="h-4 w-4" /> Send
+            </Button>
             <Button
               variant="secondary"
               className="flex items-center gap-2 rounded-xl"
               onClick={() => navigate("/app/claims")}
             >
               <ArrowDown className="h-4 w-4" /> Claims
-            </Button>
-            <Button
-              variant="secondary"
-              className="flex items-center gap-2 rounded-xl"
-              onClick={() => navigate("/app/transfer")}
-            >
-              <ArrowUp className="h-4 w-4" /> Send
             </Button>
           </div>
         </CardContent>
@@ -300,9 +300,6 @@ const Home = () => {
               <QRCodeScanner
                 buttonVariant="outline"
                 buttonText="Scan QR Code to Claim"
-                // Tidak perlu menambahkan onScanSuccess di sini
-                // Komponen QRCodeScanner sudah menangani semua format QR code
-                // dan akan menavigasi ke halaman yang sesuai
               />
             </div>
           </div>
