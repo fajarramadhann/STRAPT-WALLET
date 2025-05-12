@@ -159,7 +159,7 @@ const StraptDrop = () => {
       </div>
 
       {!isConnected ? (
-        <Card>
+        <Card className="border border-muted/50 dark:border-muted/70 bg-card/80 dark:bg-card/60 shadow-md">
           <CardContent className="flex flex-col items-center justify-center py-6 sm:py-8 px-4 sm:px-6 text-center">
             <AlertTriangle className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4" />
             <p className="text-base sm:text-lg font-medium mb-2">Wallet Not Connected</p>
@@ -168,7 +168,7 @@ const StraptDrop = () => {
         </Card>
       ) : (
         <form onSubmit={handleSubmit}>
-          <Card>
+          <Card className="border border-primary/20 dark:border-primary/30 bg-card/90 dark:bg-card/70 shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Gift className="h-5 w-5 text-primary" />
@@ -252,7 +252,9 @@ const StraptDrop = () => {
                   </div>
                 </div>
 
-                <div className={`p-3 rounded-lg ${isRandomDistribution ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-blue-500/10 border border-blue-500/20'}`}>
+                <div className={`p-3 rounded-lg ${isRandomDistribution
+                  ? 'bg-amber-500/10 dark:bg-amber-500/10 border border-amber-500/30 dark:border-amber-500/20'
+                  : 'bg-blue-500/10 dark:bg-blue-500/10 border border-blue-500/30 dark:border-blue-500/20'}`}>
                   {isRandomDistribution ? (
                     <div className="flex items-start gap-3">
                       <Shuffle className="h-5 w-5 text-amber-500 mt-0.5" />
@@ -289,7 +291,7 @@ const StraptDrop = () => {
                   <Label htmlFor="expiry-time">Expiry Time</Label>
                   <span className="text-sm font-medium">{expiryHours} hours</span>
                 </div>
-                <div className="bg-muted/30 p-3 rounded-lg flex items-center gap-3">
+                <div className="bg-muted/20 dark:bg-muted/30 border border-muted/30 dark:border-muted/40 p-3 rounded-lg flex items-center gap-3">
                   <Clock className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">Fixed at 24 hours</p>
@@ -331,7 +333,7 @@ const StraptDrop = () => {
 
       {/* Success Dialog */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-card/95 dark:bg-card/90 backdrop-blur-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Check className="h-5 w-5 text-green-500" />
@@ -396,7 +398,7 @@ const StraptDrop = () => {
 
       {/* QR Code Dialog */}
       <Dialog open={showQR} onOpenChange={setShowQR}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-card/95 dark:bg-card/90 backdrop-blur-sm">
           <DialogHeader>
             <DialogTitle>STRAPT Drop QR Code</DialogTitle>
             <DialogDescription>

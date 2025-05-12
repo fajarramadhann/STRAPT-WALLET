@@ -313,7 +313,9 @@ const MyDrops = () => {
                 transition={{ delay: index * 0.05 }}
                 whileHover={{ y: -5 }}
               >
-                <Card className={`h-full flex flex-col ${drop.info.isActive ? 'border border-primary/20 bg-black/40' : 'opacity-80 border border-muted/50 bg-black/20'}`}>
+                <Card className={`h-full flex flex-col ${drop.info.isActive
+                  ? 'dark:border-primary/20 dark:bg-black/40 border-primary/30 bg-primary/5 shadow-md'
+                  : 'dark:opacity-80 dark:border-muted/50 dark:bg-black/20 opacity-90 border-muted/30 bg-muted/10'}`}>
                   <CardHeader className="pb-2 px-4 pt-4">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">

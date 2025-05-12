@@ -359,7 +359,7 @@ const StraptDropClaim = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="border-2 border-muted">
+          <Card className="border border-muted/50 dark:border-muted/70 bg-card/80 dark:bg-card/60 shadow-md">
             <CardContent className="flex flex-col items-center justify-center py-8 sm:py-10 px-4 sm:px-6 text-center">
               <AlertTriangle className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mb-4 sm:mb-6" />
               <p className="text-lg sm:text-xl font-medium mb-2">Wallet Not Connected</p>
@@ -376,7 +376,7 @@ const StraptDropClaim = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="border-2 border-muted">
+          <Card className="border border-muted/50 dark:border-muted/70 bg-card/80 dark:bg-card/60 shadow-md">
             <CardContent className="flex flex-col items-center justify-center py-8 sm:py-10 px-4 sm:px-6 text-center">
               <Gift className="h-12 w-12 sm:h-16 sm:w-16 text-primary/70 mb-4 sm:mb-6" />
               <p className="text-lg sm:text-xl font-medium mb-2">No Drop ID Provided</p>
@@ -405,7 +405,7 @@ const StraptDropClaim = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="border-2 border-destructive/30">
+          <Card className="border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 shadow-md">
             <CardContent className="flex flex-col items-center justify-center py-8 sm:py-10 px-4 sm:px-6 text-center">
               <AlertTriangle className="h-12 w-12 sm:h-16 sm:w-16 text-destructive mb-4 sm:mb-6" />
               <p className="text-lg sm:text-xl font-medium mb-2">Drop Not Found</p>
@@ -426,8 +426,8 @@ const StraptDropClaim = () => {
           transition={{ duration: 0.3 }}
           className="max-w-xl mx-auto"
         >
-          <Card className="overflow-hidden border-2 border-muted">
-            <CardHeader className="bg-muted/30 pb-4">
+          <Card className="overflow-hidden border border-primary/20 dark:border-primary/30 bg-card/90 dark:bg-card/70 shadow-lg">
+            <CardHeader className="bg-muted/20 dark:bg-muted/30 border-b border-muted/30 dark:border-muted/40 pb-4">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Gift className="h-6 w-6 text-primary" />
                 STRAPT Drop
@@ -438,7 +438,7 @@ const StraptDropClaim = () => {
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
               {/* Drop Status */}
-              <div className="flex justify-between items-center p-4 bg-muted/30 rounded-lg">
+              <div className="flex justify-between items-center p-4 bg-muted/20 dark:bg-muted/30 border border-muted/30 dark:border-muted/40 rounded-lg">
                 <div className="flex items-center gap-2">
                   <motion.div
                     className={`w-3 h-3 rounded-full ${dropInfo.isActive && !isExpired(dropInfo.expiryTime) ? 'bg-green-500' : 'bg-red-500'}`}
@@ -456,7 +456,7 @@ const StraptDropClaim = () => {
               {/* Drop Details */}
               <div className="grid grid-cols-2 gap-6">
                 <motion.div
-                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  className="flex flex-col gap-1 bg-muted/10 dark:bg-muted/20 border border-muted/30 dark:border-muted/40 p-4 rounded-lg"
                   whileHover={{ y: -2 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
@@ -464,7 +464,7 @@ const StraptDropClaim = () => {
                   <span className="font-medium text-lg">{tokenSymbol}</span>
                 </motion.div>
                 <motion.div
-                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  className="flex flex-col gap-1 bg-muted/10 dark:bg-muted/20 border border-muted/30 dark:border-muted/40 p-4 rounded-lg"
                   whileHover={{ y: -2 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
@@ -482,7 +482,7 @@ const StraptDropClaim = () => {
                   </span>
                 </motion.div>
                 <motion.div
-                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  className="flex flex-col gap-1 bg-muted/10 dark:bg-muted/20 border border-muted/30 dark:border-muted/40 p-4 rounded-lg"
                   whileHover={{ y: -2 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
@@ -490,7 +490,7 @@ const StraptDropClaim = () => {
                   <span className="font-medium text-lg">{dropInfo.claimedCount.toString()} / {dropInfo.totalRecipients.toString()}</span>
                 </motion.div>
                 <motion.div
-                  className="flex flex-col gap-1 bg-muted/20 p-4 rounded-lg"
+                  className="flex flex-col gap-1 bg-muted/10 dark:bg-muted/20 border border-muted/30 dark:border-muted/40 p-4 rounded-lg"
                   whileHover={{ y: -2 }}
                   transition={{ type: "spring", stiffness: 300 }}
                 >
@@ -503,7 +503,7 @@ const StraptDropClaim = () => {
               <AnimatePresence>
                 {hasClaimed && (
                   <motion.div
-                    className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-3"
+                    className="p-4 bg-green-500/5 dark:bg-green-500/10 border border-green-500/30 dark:border-green-500/20 rounded-lg flex items-center gap-3"
                     initial={{ opacity: 0, height: 0, marginTop: 0 }}
                     animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
                     exit={{ opacity: 0, height: 0, marginTop: 0 }}
@@ -525,7 +525,7 @@ const StraptDropClaim = () => {
               <AnimatePresence>
                 {!dropInfo.isActive && (
                   <motion.div
-                    className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3"
+                    className="p-4 bg-destructive/5 dark:bg-destructive/10 border border-destructive/30 dark:border-destructive/20 rounded-lg flex items-center gap-3"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -537,7 +537,7 @@ const StraptDropClaim = () => {
 
                 {dropInfo.isActive && isExpired(dropInfo.expiryTime) && (
                   <motion.div
-                    className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3"
+                    className="p-4 bg-destructive/5 dark:bg-destructive/10 border border-destructive/30 dark:border-destructive/20 rounded-lg flex items-center gap-3"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -549,7 +549,7 @@ const StraptDropClaim = () => {
 
                 {dropInfo.isActive && !isExpired(dropInfo.expiryTime) && dropInfo.claimedCount >= dropInfo.totalRecipients && (
                   <motion.div
-                    className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3"
+                    className="p-4 bg-destructive/5 dark:bg-destructive/10 border border-destructive/30 dark:border-destructive/20 rounded-lg flex items-center gap-3"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -561,7 +561,7 @@ const StraptDropClaim = () => {
 
                 {dropInfo.isActive && !isExpired(dropInfo.expiryTime) && isCreatorWithinCooldown(dropInfo) && (
                   <motion.div
-                    className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-3"
+                    className="p-4 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/30 dark:border-amber-500/20 rounded-lg flex items-center gap-3"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -619,14 +619,6 @@ const StraptDropClaim = () => {
           </Card>
         </motion.div>
       )}
-
-      {/* QR Code Scanner */}
-      <QRCodeScanner
-        triggerType="dialog"
-        open={showScanner}
-        onOpenChange={setShowScanner}
-        onScan={handleQRScan}
-      />
     </div>
   );
 };

@@ -73,26 +73,26 @@ const Index = () => {
             <div className="mx-auto max-w-xs md:max-w-sm md:w-1/2">
               <div className="relative">
                 <div className="rounded-[3rem] bg-card p-4 overflow-hidden border-8 border-foreground/10 shadow-xl">
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl"></div>
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl" />
                   <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 aspect-[9/19]">
                     <div className="p-4">
                       <div className="flex justify-between items-center mb-6">
                         <div className="w-2/3">
-                          <div className="h-6 bg-white/20 rounded-lg mb-2"></div>
-                          <div className="h-4 bg-white/10 rounded-lg w-2/3"></div>
+                          <div className="h-6 bg-white/20 rounded-lg mb-2" />
+                          <div className="h-4 bg-white/10 rounded-lg w-2/3" />
                         </div>
-                        <div className="w-10 h-10 rounded-full bg-white/20"></div>
+                        <div className="w-10 h-10 rounded-full bg-white/20" />
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 mb-6">
                         <div className="h-20 rounded-2xl bg-white/10 flex items-center justify-center">
-                          <div className="h-8 w-8 rounded-full bg-accent/50"></div>
+                          <div className="h-8 w-8 rounded-full bg-accent/50"/>
                         </div>
                         <div className="h-20 rounded-2xl bg-white/10 flex items-center justify-center">
-                          <div className="h-8 w-8 rounded-full bg-primary/50"></div>
+                          <div className="h-8 w-8 rounded-full bg-primary/50" />
                         </div>
                         <div className="h-20 rounded-2xl bg-white/10 flex items-center justify-center">
-                          <div className="h-8 w-8 rounded-full bg-white/20"></div>
+                          <div className="h-8 w-8 rounded-full bg-white/20" />
                         </div>
                       </div>
 
