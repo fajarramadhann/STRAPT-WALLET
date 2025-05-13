@@ -1,61 +1,133 @@
 
+import { Suspense, lazy } from "react";
 import { Toaster as Sonner } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ThemeProvider } from "@/components/ui/theme-provider";
+import { Loading } from "@/components/ui/loading";
 
 import { XellarProvider } from './providers/XellarProvider';
+import { AppStateProvider } from './state/AppStateContext';
+import { TransferStateProvider } from './state/TransferStateContext';
 
-import Index from "./pages/Index";
-import Home from "./pages/Home";
-import Transfer from "./pages/Transfer";
-import Streams from "./pages/Streams";
-import Pools from "./pages/Pools";
-import StraptDrop from "./pages/StraptDrop";
-import StraptDropClaim from "./pages/StraptDropClaim";
-import MyDrops from "./pages/MyDrops";
-import Profile from "./pages/Profile";
-import Claims from "./pages/Claims";
-import Savings from "./pages/Savings";
-import ComingSoon from "./pages/ComingSoon";
-import NotFound from "./pages/NotFound";
+// Import WalletCheck eagerly as it's needed for route protection
+import WalletCheck from './components/WalletCheck';
+
+// Eagerly load layouts as they're used on every page
 import Layout from "./components/Layout";
 import DesktopLayout from "./components/DesktopLayout";
-import WalletCheck from './components/WalletCheck';
+
+// Lazy load all page components to reduce initial bundle size
+const Index = lazy(() => import("./pages/Index"));
+const Home = lazy(() => import("./pages/Home"));
+const Transfer = lazy(() => import("./pages/Transfer"));
+const Streams = lazy(() => import("./pages/OptimizedStreams"));
+const Pools = lazy(() => import("./pages/Pools"));
+const StraptDrop = lazy(() => import("./pages/StraptDrop"));
+const StraptDropClaim = lazy(() => import("./pages/StraptDropClaim"));
+const MyDrops = lazy(() => import("./pages/OptimizedMyDrops"));
+const Profile = lazy(() => import("./pages/OptimizedProfile"));
+const Claims = lazy(() => import("./pages/Claims"));
+const Savings = lazy(() => import("./pages/Savings"));
+const ComingSoon = lazy(() => import("./pages/ComingSoon"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const App = () => {
   const isMobile = useIsMobile();
 
+  // Loading fallback for lazy-loaded components
+  const PageLoading = () => (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <Loading size="lg" text="Loading page..." />
+    </div>
+  );
+
   return (
     <ThemeProvider defaultTheme="dark" storageKey="strapt-theme">
       <XellarProvider>
-        <TooltipProvider>
-          <Sonner position="top-right" />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="claim/:id?" element={<Navigate to="/app/claims" replace />} />
-              {/* Protected routes require wallet connection */}
-              <Route element={<WalletCheck />}>
-                <Route path="app" element={isMobile ? <Layout /> : <DesktopLayout />}>
-                  <Route index element={<Home />} />
-                  <Route path="transfer" element={<Transfer />} />
-                  <Route path="streams" element={<Streams />} />
-                  <Route path="savings" element={<Savings />} />
-                  <Route path="pools" element={<Pools />} />
-                  <Route path="strapt-drop" element={<StraptDrop />} />
-                  <Route path="strapt-drop/claim" element={<StraptDropClaim />} />
-                  <Route path="strapt-drop/my-drops" element={<MyDrops />} />
-                  <Route path="profile" element={<Profile />} />
-                  <Route path="claims" element={<Claims />} />
-                  <Route path="coming-soon" element={<ComingSoon />} />
-                </Route>
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <AppStateProvider>
+          <TransferStateProvider>
+            <TooltipProvider>
+              <Sonner position="top-right" />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={
+                    <Suspense fallback={<PageLoading />}>
+                      <Index />
+                    </Suspense>
+                  } />
+                  <Route path="claim/:id?" element={<Navigate to="/app/claims" replace />} />
+                  {/* Protected routes require wallet connection */}
+                  <Route element={<WalletCheck />}>
+                    <Route path="app" element={isMobile ? <Layout /> : <DesktopLayout />}>
+                      <Route index element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Home />
+                        </Suspense>
+                      } />
+                      <Route path="transfer" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Transfer />
+                        </Suspense>
+                      } />
+                      <Route path="streams" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Streams />
+                        </Suspense>
+                      } />
+                      <Route path="savings" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Savings />
+                        </Suspense>
+                      } />
+                      <Route path="pools" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Pools />
+                        </Suspense>
+                      } />
+                      <Route path="strapt-drop" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <StraptDrop />
+                        </Suspense>
+                      } />
+                      <Route path="strapt-drop/claim" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <StraptDropClaim />
+                        </Suspense>
+                      } />
+                      <Route path="strapt-drop/my-drops" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <MyDrops />
+                        </Suspense>
+                      } />
+                      <Route path="profile" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Profile />
+                        </Suspense>
+                      } />
+                      <Route path="claims" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Claims />
+                        </Suspense>
+                      } />
+                      <Route path="coming-soon" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <ComingSoon />
+                        </Suspense>
+                      } />
+                    </Route>
+                  </Route>
+                  <Route path="*" element={
+                    <Suspense fallback={<PageLoading />}>
+                      <NotFound />
+                    </Suspense>
+                  } />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </TransferStateProvider>
+        </AppStateProvider>
       </XellarProvider>
     </ThemeProvider>
   );

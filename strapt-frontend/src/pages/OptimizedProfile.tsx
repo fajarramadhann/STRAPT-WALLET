@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Copy, Moon, Sun, ChevronRight, LogOut, Shield, BarChart2, Users, Info, FileText, QrCode, UserPlus, Clock, CalendarClock, Scan } from 'lucide-react';
+import { useState, lazy, Suspense, useCallback, memo } from 'react';
+import { Copy, Moon, Sun, ChevronRight, LogOut, Shield, BarChart2, Users, Info, FileText, QrCode, UserPlus, Clock, CalendarClock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
@@ -13,16 +13,73 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useIsMobile } from '@/hooks/use-mobile';
 import QRCode from '@/components/QRCode';
 import QRCodeScanner from '@/components/QRCodeScanner';
-import ProfileActivityTimeline from '@/components/profile/ProfileActivityTimeline';
-import QuickContacts from '@/components/profile/QuickContacts';
-import DecentralizedIdentity from '@/components/profile/DecentralizedIdentity';
-import ScheduledTransfers from '@/components/profile/ScheduledTransfers';
+import { Loading } from '@/components/ui/loading';
 
-const Profile = () => {
+// Lazy load the tab content components
+const ProfileActivityTimeline = lazy(() => import('@/components/profile/ProfileActivityTimeline'));
+const QuickContacts = lazy(() => import('@/components/profile/QuickContacts'));
+const DecentralizedIdentity = lazy(() => import('@/components/profile/DecentralizedIdentity'));
+const ScheduledTransfers = lazy(() => import('@/components/profile/ScheduledTransfers'));
+
+// Loading component for tab content
+const TabLoading = memo(() => (
+  <div className="flex justify-center items-center py-12">
+    <Loading size="lg" text="Loading..." />
+  </div>
+));
+
+TabLoading.displayName = 'TabLoading';
+
+// Memoized menu items to prevent re-renders
+const menuItems = [
+  {
+    title: 'Transaction History',
+    icon: FileText,
+    onClick: () => console.log('Transaction History clicked'),
+  },
+  {
+    title: 'Protected Transfers',
+    icon: Shield,
+    onClick: () => console.log('Protected Transfers clicked'),
+  },
+  {
+    title: 'Streaming Payments',
+    icon: BarChart2,
+    onClick: () => console.log('Streaming Payments clicked'),
+  },
+  {
+    title: 'Group Pools',
+    icon: Users,
+    onClick: () => console.log('Group Pools clicked'),
+  },
+  {
+    title: 'About STRAPT',
+    icon: Info,
+    onClick: () => console.log('About clicked'),
+  },
+];
+
+// Memoized menu item component
+const MenuItem = memo(({ item }: { item: typeof menuItems[0] }) => (
+  <Button variant="ghost" className="w-full justify-start p-3 h-auto" onClick={item.onClick}>
+    <div className="flex items-center justify-between w-full">
+      <div className="flex items-center gap-3">
+        <item.icon className="h-5 w-5 text-muted-foreground" />
+        <span>{item.title}</span>
+      </div>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+    </div>
+  </Button>
+));
+
+MenuItem.displayName = 'MenuItem';
+
+const OptimizedProfile = () => {
   const [isDarkMode, setIsDarkMode] = useState(
     document.documentElement.classList.contains('dark')
   );
   const [showQR, setShowQR] = useState(false);
+  const [activeTab, setActiveTab] = useState('activity');
   const { toast } = useToast();
   const { address, connector } = useAccount();
   const { disconnect } = useDisconnect();
@@ -31,7 +88,8 @@ const Profile = () => {
 
   const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
 
-  const handleCopyAddress = () => {
+  // Memoized handlers to prevent re-renders
+  const handleCopyAddress = useCallback(() => {
     if (address) {
       navigator.clipboard.writeText(address);
       toast({
@@ -39,18 +97,18 @@ const Profile = () => {
         description: "Your wallet address has been copied to clipboard",
       });
     }
-  };
+  }, [address, toast]);
 
-  const handleSignOut = () => {
+  const handleSignOut = useCallback(() => {
     disconnect();
     toast({
       title: "Signed Out",
       description: "Your wallet has been disconnected",
     });
     navigate('/');
-  };
+  }, [disconnect, toast, navigate]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
 
@@ -65,7 +123,7 @@ const Profile = () => {
       title: `${newMode ? 'Dark' : 'Light'} Mode Enabled`,
       description: `Switched to ${newMode ? 'dark' : 'light'} mode`,
     });
-  };
+  }, [isDarkMode, toast]);
 
   // QR code profile data
   const profileData = {
@@ -75,34 +133,6 @@ const Profile = () => {
   };
 
   const profileQRValue = JSON.stringify(profileData);
-
-  const menuItems = [
-    {
-      title: 'Transaction History',
-      icon: FileText,
-      onClick: () => console.log('Transaction History clicked'),
-    },
-    {
-      title: 'Protected Transfers',
-      icon: Shield,
-      onClick: () => console.log('Protected Transfers clicked'),
-    },
-    {
-      title: 'Streaming Payments',
-      icon: BarChart2,
-      onClick: () => console.log('Streaming Payments clicked'),
-    },
-    {
-      title: 'Group Pools',
-      icon: Users,
-      onClick: () => console.log('Group Pools clicked'),
-    },
-    {
-      title: 'About STRAPT',
-      icon: Info,
-      onClick: () => console.log('About clicked'),
-    },
-  ];
 
   return (
     <div className="space-y-4 pb-16">
@@ -166,7 +196,7 @@ const Profile = () => {
       </Card>
 
       {/* Tabs for different sections - improved for mobile */}
-      <Tabs defaultValue="activity" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid grid-cols-4 w-full mb-4">
           <TabsTrigger value="activity" className="flex flex-col items-center p-2 h-auto">
             <Clock className="h-4 w-4 mb-1" />
@@ -187,19 +217,27 @@ const Profile = () => {
         </TabsList>
 
         <TabsContent value="activity" className="space-y-4 mt-2">
-          <ProfileActivityTimeline />
+          <Suspense fallback={<TabLoading />}>
+            {activeTab === 'activity' && <ProfileActivityTimeline />}
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="contacts" className="space-y-4 mt-2">
-          <QuickContacts />
+          <Suspense fallback={<TabLoading />}>
+            {activeTab === 'contacts' && <QuickContacts />}
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="scheduled" className="space-y-4 mt-2">
-          <ScheduledTransfers />
+          <Suspense fallback={<TabLoading />}>
+            {activeTab === 'scheduled' && <ScheduledTransfers />}
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="identity" className="space-y-4 mt-2">
-          <DecentralizedIdentity />
+          <Suspense fallback={<TabLoading />}>
+            {activeTab === 'identity' && <DecentralizedIdentity />}
+          </Suspense>
         </TabsContent>
       </Tabs>
 
@@ -228,15 +266,7 @@ const Profile = () => {
         <CardContent className="p-0">
           {menuItems.map((item, index) => (
             <div key={index}>
-              <Button variant="ghost" className="w-full justify-start p-3 h-auto" onClick={item.onClick}>
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <item.icon className="h-5 w-5 text-muted-foreground" />
-                    <span>{item.title}</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </Button>
+              <MenuItem item={item} />
               {index < menuItems.length - 1 && <Separator />}
             </div>
           ))}
@@ -259,7 +289,7 @@ const Profile = () => {
             <DialogTitle>Your Profile QR Code</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center space-y-4">
-            <QRCode value={profileQRValue} size={isMobile ? 180 : 200} />
+            <QRCode value={profileQRValue} size={isMobile ? 180 : 200} renderAsImage={true} />
             <p className="text-sm text-center text-muted-foreground">
               Share this code with friends so they can easily find and send you money
             </p>
@@ -273,4 +303,4 @@ const Profile = () => {
   );
 };
 
-export default Profile;
+export default OptimizedProfile;

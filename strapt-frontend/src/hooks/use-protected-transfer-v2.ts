@@ -1,25 +1,14 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther, parseUnits, formatUnits, keccak256, toBytes, encodeFunctionData } from 'viem';
-import { toast } from 'sonner';
-import { writeContract, waitForTransactionReceipt } from 'wagmi/actions';
-import { config } from '@/providers/XellarProvider';
+import { formatUnits } from 'viem';
+import { waitForTransactionReceipt } from 'wagmi/actions';
 import ProtectedTransferV2ABI from '@/contracts/ProtectedTransferV2.json';
-import contractConfig from '@/contracts/contract-config.json';
-import USDCABI from '@/contracts/USDCMock.json';
-import IDRXABI from '@/contracts/IDRX.json';
+import { TokenType, useTokenUtils } from './useTokenUtils';
+import { useTransactionState } from './useTransactionState';
+import { useErrorHandler } from './useErrorHandler';
+import { useClaimCodeUtils } from './useClaimCodeUtils';
+import { useContractUtils } from './useContractUtils';
 
-// Contract addresses
-const PROTECTED_TRANSFER_V2_ADDRESS = contractConfig.ProtectedTransferV2.address as `0x${string}`;
-const USDC_ADDRESS = contractConfig.ProtectedTransferV2.supportedTokens.USDC as `0x${string}`;
-const IDRX_ADDRESS = contractConfig.ProtectedTransferV2.supportedTokens.IDRX as `0x${string}`;
-
-// Token decimals
-const USDC_DECIMALS = 6;
-const IDRX_DECIMALS = 2;
-
-// Token types
-export type TokenType = 'USDC' | 'IDRX';
+// Re-export TokenType for use in other components
+export type { TokenType };
 
 // Transfer status enum
 export enum TransferStatus {
@@ -46,40 +35,31 @@ export interface Transfer {
 }
 
 export function useProtectedTransferV2() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentTransferId, setCurrentTransferId] = useState<string | null>(null);
+  // Use our utility hooks
+  const {
+    getTokenAddress,
+    parseTokenAmount,
+    formatTokenAmount,
+    getTokenABI,
+    USDC_ADDRESS,
+    IDRX_ADDRESS
+  } = useTokenUtils();
 
-  // Write contract hooks
-  const { writeContract, isPending, data: hash } = useWriteContract();
+  const {
+    isLoading,
+    setIsLoading,
+    isConfirmed,
+    isPending,
+    isConfirming,
+    setCurrentId: setCurrentTransferId
+  } = useTransactionState();
 
-  // Wait for transaction receipt
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({ hash });
+  const { handleError } = useErrorHandler();
+  const { generateClaimCode, hashClaimCode } = useClaimCodeUtils();
+  const { getContractAddress, getExpiryTimestamp } = useContractUtils();
 
-  // Generate a random claim code
-  const generateClaimCode = useCallback(() => {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return result;
-  }, []);
-
-  // Hash a claim code
-  const hashClaimCode = useCallback((claimCode: string) => {
-    return keccak256(toBytes(claimCode));
-  }, []);
-
-  // Get token address from token type
-  const getTokenAddress = useCallback((tokenType: TokenType): `0x${string}` => {
-    return tokenType === 'USDC' ? USDC_ADDRESS : IDRX_ADDRESS;
-  }, []);
-
-  // Get token decimals from token type
-  const getTokenDecimals = useCallback((tokenType: TokenType): number => {
-    return tokenType === 'USDC' ? USDC_DECIMALS : IDRX_DECIMALS;
-  }, []);
+  // Get the contract address
+  const PROTECTED_TRANSFER_V2_ADDRESS = getContractAddress('ProtectedTransferV2');
 
   // Check token allowance
   const checkAllowance = async (
@@ -88,15 +68,10 @@ export function useProtectedTransferV2() {
     ownerAddress: string
   ): Promise<boolean> => {
     try {
-      // Get token address and decimals
+      // Get token address and parse amount
       const tokenAddress = getTokenAddress(tokenType);
-      const decimals = getTokenDecimals(tokenType);
-
-      // Parse amount with correct decimals
-      const parsedAmount = parseUnits(amount, decimals);
-
-      // Get token ABI
-      const tokenABI = tokenType === 'USDC' ? USDCABI.abi : IDRXABI.abi;
+      const parsedAmount = parseTokenAmount(amount, tokenType);
+      const tokenABI = getTokenABI(tokenType);
 
       // Import necessary functions
       const { readContract } = await import('wagmi/actions');
@@ -107,20 +82,22 @@ export function useProtectedTransferV2() {
         abi: tokenABI,
         address: tokenAddress,
         functionName: 'allowance',
-        args: [ownerAddress, PROTECTED_TRANSFER_V2_ADDRESS],
+        args: [ownerAddress as `0x${string}`, PROTECTED_TRANSFER_V2_ADDRESS],
       });
+
+      const allowanceBigInt = BigInt(allowance as string || '0');
 
       console.log('Token allowance check:', {
         token: tokenType,
-        allowance: allowance.toString(),
+        allowance: allowanceBigInt.toString(),
         required: parsedAmount.toString(),
-        sufficient: BigInt(allowance) >= BigInt(parsedAmount)
+        sufficient: allowanceBigInt >= parsedAmount
       });
 
       // Return true if allowance is sufficient
-      return BigInt(allowance) >= BigInt(parsedAmount);
+      return allowanceBigInt >= parsedAmount;
     } catch (error) {
-      console.error('Error checking allowance:', error);
+      handleError(error, 'Error checking token allowance');
       return false;
     }
   };
@@ -141,23 +118,19 @@ export function useProtectedTransferV2() {
       const claimCode = withPassword ? (customPassword || generateClaimCode()) : '';
       const claimCodeHash = withPassword ? hashClaimCode(claimCode) : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
-      // Get token address and decimals
+      // Get token address and parse amount
       const tokenAddress = getTokenAddress(tokenType);
-      const decimals = getTokenDecimals(tokenType);
+      const parsedAmount = parseTokenAmount(amount, tokenType);
 
-      // Parse amount with correct decimals
-      const parsedAmount = parseUnits(amount, decimals);
-
-      // Ensure expiryTimestamp is a valid number (24 hours from now by default)
-      const validExpiryTimestamp = typeof expiryTimestamp === 'number' && !Number.isNaN(expiryTimestamp)
-        ? expiryTimestamp
-        : Math.floor(Date.now() / 1000) + 86400;
+      // Ensure expiryTimestamp is valid (at least 1 hour in the future)
+      const minExpiryTime = Math.floor(Date.now() / 1000) + 3600; // Current time + 1 hour
+      const validExpiryTimestamp = expiryTimestamp > minExpiryTime ? expiryTimestamp : getExpiryTimestamp(24);
 
       console.log('Transfer expiry timestamp:', validExpiryTimestamp, 'current time:', Math.floor(Date.now() / 1000));
 
-      // Import config for wagmi actions
-      const { config } = await import('@/providers/XellarProvider');
+      // Get the account
       const { getAccount, simulateContract, writeContract: writeContractAction } = await import('wagmi/actions');
+      const { config } = await import('@/providers/XellarProvider');
       const account = getAccount(config);
 
       if (!account || !account.address) {
@@ -213,7 +186,7 @@ export function useProtectedTransferV2() {
             // Check if this log is from our contract
             if (log.address.toLowerCase() === PROTECTED_TRANSFER_V2_ADDRESS.toLowerCase()) {
               // The TransferCreated event signature
-              const transferCreatedSignature = '0x5a17d6f61b0f9c9df5e311e12f0d52ea0b0c4d8cb3b761b23ac1bae23a7b0b80';
+              const transferCreatedSignature = '0x7d84a6263ae0d98d3329bd7b46bb4e8d6f98cd35a7adb45c274c8b7fd5ebd5e0';
 
               if (log.topics[0] === transferCreatedSignature) {
                 console.log('Found TransferCreated event');
@@ -254,8 +227,7 @@ export function useProtectedTransferV2() {
         withPassword
       };
     } catch (error) {
-      console.error('Error creating direct transfer:', error);
-      toast.error('Failed to create transfer');
+      handleError(error, 'Failed to create transfer');
       throw error;
     } finally {
       setIsLoading(false);
@@ -277,23 +249,19 @@ export function useProtectedTransferV2() {
       const claimCode = withPassword ? (customPassword || generateClaimCode()) : '';
       const claimCodeHash = withPassword ? hashClaimCode(claimCode) : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
-      // Get token address and decimals
+      // Get token address and parse amount
       const tokenAddress = getTokenAddress(tokenType);
-      const decimals = getTokenDecimals(tokenType);
+      const parsedAmount = parseTokenAmount(amount, tokenType);
 
-      // Parse amount with correct decimals
-      const parsedAmount = parseUnits(amount, decimals);
-
-      // Ensure expiryTimestamp is a valid number (24 hours from now by default)
-      const validExpiryTimestamp = typeof expiryTimestamp === 'number' && !Number.isNaN(expiryTimestamp)
-        ? expiryTimestamp
-        : Math.floor(Date.now() / 1000) + 86400;
+      // Ensure expiryTimestamp is valid (at least 1 hour in the future)
+      const minExpiryTime = Math.floor(Date.now() / 1000) + 3600; // Current time + 1 hour
+      const validExpiryTimestamp = expiryTimestamp > minExpiryTime ? expiryTimestamp : getExpiryTimestamp(24);
 
       console.log('Link transfer expiry timestamp:', validExpiryTimestamp, 'current time:', Math.floor(Date.now() / 1000));
 
-      // Import config for wagmi actions
-      const { config } = await import('@/providers/XellarProvider');
+      // Get the account
       const { getAccount, simulateContract, writeContract: writeContractAction } = await import('wagmi/actions');
+      const { config } = await import('@/providers/XellarProvider');
       const account = getAccount(config);
 
       if (!account || !account.address) {
@@ -355,7 +323,7 @@ export function useProtectedTransferV2() {
             // Check if this log is from our contract
             if (log.address.toLowerCase() === PROTECTED_TRANSFER_V2_ADDRESS.toLowerCase()) {
               // The TransferCreated event signature
-              const transferCreatedSignature = '0x5a17d6f61b0f9c9df5e311e12f0d52ea0b0c4d8cb3b761b23ac1bae23a7b0b80';
+              const transferCreatedSignature = '0x7d84a6263ae0d98d3329bd7b46bb4e8d6f98cd35a7adb45c274c8b7fd5ebd5e0';
 
               if (log.topics[0] === transferCreatedSignature) {
                 console.log('Found TransferCreated event');
@@ -396,8 +364,7 @@ export function useProtectedTransferV2() {
         withPassword
       };
     } catch (error) {
-      console.error('Error creating link transfer:', error);
-      toast.error('Failed to create link transfer');
+      handleError(error, 'Failed to create link transfer');
       throw error;
     } finally {
       setIsLoading(false);
@@ -447,20 +414,10 @@ export function useProtectedTransferV2() {
         return true;
       } catch (error) {
         console.error('Error in claim transfer transaction:', error);
-        // Check if it's a user rejection
-        if (error.message && (
-            error.message.includes('rejected') ||
-            error.message.includes('denied') ||
-            error.message.includes('cancelled') ||
-            error.message.includes('canceled')
-          )) {
-          throw new Error('Transaction was rejected by the user');
-        }
-        throw new Error(`Failed to claim transfer: ${error instanceof Error ? error.message : String(error)}`);
+        throw error;
       }
     } catch (error) {
-      console.error('Error claiming transfer:', error);
-      toast.error('Failed to claim transfer');
+      handleError(error, 'Failed to claim transfer');
       throw error;
     } finally {
       setIsLoading(false);
@@ -509,20 +466,10 @@ export function useProtectedTransferV2() {
         return true;
       } catch (error) {
         console.error('Error in refund transfer transaction:', error);
-        // Check if it's a user rejection
-        if (error.message && (
-            error.message.includes('rejected') ||
-            error.message.includes('denied') ||
-            error.message.includes('cancelled') ||
-            error.message.includes('canceled')
-          )) {
-          throw new Error('Transaction was rejected by the user');
-        }
-        throw new Error(`Failed to refund transfer: ${error instanceof Error ? error.message : String(error)}`);
+        throw error;
       }
     } catch (error) {
-      console.error('Error refunding transfer:', error);
-      toast.error('Failed to refund transfer');
+      handleError(error, 'Failed to refund transfer');
       throw error;
     } finally {
       setIsLoading(false);
@@ -532,10 +479,6 @@ export function useProtectedTransferV2() {
   // Check if a transfer is password protected
   const isPasswordProtected = async (transferId: string): Promise<boolean> => {
     try {
-      // Import config for wagmi actions
-      const { config } = await import('@/providers/XellarProvider');
-      const { readContract } = await import('wagmi/actions');
-
       console.log('Checking if transfer is password protected:', transferId);
 
       // Get the transfer details to check if it has password protection
@@ -551,7 +494,7 @@ export function useProtectedTransferV2() {
       // In ProtectedTransferV2, we can directly check if the transfer has password protection
       return transferDetails.hasPassword;
     } catch (error) {
-      console.error('Error checking if transfer is password protected:', error);
+      handleError(error, 'Error checking if transfer is password protected');
       // Default to requiring a password to be safe
       return true;
     }
@@ -602,16 +545,28 @@ export function useProtectedTransferV2() {
 
         // Determine token symbol based on token address
         let tokenSymbol = 'Unknown';
+        let tokenType: TokenType | null = null;
+
         if (tokenAddress.toLowerCase() === USDC_ADDRESS.toLowerCase()) {
           tokenSymbol = 'USDC';
+          tokenType = 'USDC';
         } else if (tokenAddress.toLowerCase() === IDRX_ADDRESS.toLowerCase()) {
           tokenSymbol = 'IDRX';
+          tokenType = 'IDRX';
         }
 
-        // Format amount based on token
-        const decimals = tokenSymbol === 'USDC' ? USDC_DECIMALS : IDRX_DECIMALS;
-        const formattedAmount = formatUnits(amount, decimals);
-        const formattedGrossAmount = formatUnits(grossAmount, decimals);
+        // Format amount based on token type
+        let formattedAmount = '0';
+        let formattedGrossAmount = '0';
+
+        if (tokenType) {
+          formattedAmount = formatTokenAmount(amount, tokenType);
+          formattedGrossAmount = formatTokenAmount(grossAmount, tokenType);
+        } else {
+          // Fallback to default formatting if token type is unknown
+          formattedAmount = formatUnits(amount, 18);
+          formattedGrossAmount = formatUnits(grossAmount, 18);
+        }
 
         // Convert status to number safely
         const statusNumber = typeof status === 'bigint' ? Number(status) :
@@ -638,11 +593,11 @@ export function useProtectedTransferV2() {
           id: transferId
         };
       } catch (error) {
-        console.error('Error with contract call:', error);
+        handleError(error, 'Error getting transfer details');
         return null;
       }
     } catch (error) {
-      console.error('Error getting transfer details:', error);
+      handleError(error, 'Error getting transfer details');
       return null;
     }
   };
@@ -667,7 +622,7 @@ export function useProtectedTransferV2() {
 
       return !!isClaimable;
     } catch (error) {
-      console.error('Error checking if transfer is claimable:', error);
+      handleError(error, 'Error checking if transfer is claimable');
       return false;
     }
   };
@@ -692,7 +647,7 @@ export function useProtectedTransferV2() {
 
       return transfers as string[];
     } catch (error) {
-      console.error('Error getting recipient transfers:', error);
+      handleError(error, 'Error getting recipient transfers');
       return [];
     }
   };
@@ -711,8 +666,6 @@ export function useProtectedTransferV2() {
     getRecipientTransfers,
     generateClaimCode,
     hashClaimCode,
-    getTokenAddress,
-    getTokenDecimals,
     checkAllowance,
     USDC_ADDRESS,
     IDRX_ADDRESS,
