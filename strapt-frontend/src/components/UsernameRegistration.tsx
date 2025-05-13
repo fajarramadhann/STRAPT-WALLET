@@ -18,7 +18,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [step, setStep] = useState(1);
   const [progress, setProgress] = useState(0);
-  const [walletAddress, setWalletAddress] = useState('sei14zd...8xct');
+  const [walletAddress, setWalletAddress] = useState('0x14zd...8xct');
   const [generatingAddress, setGeneratingAddress] = useState(false);
   const { toast } = useToast();
 
@@ -107,7 +107,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
   const handleComplete = () => {
     toast({
       title: "Registration Complete",
-      description: `@${username}.sei is now yours!`,
+      description: `@${username}.lisk is now yours!`,
     });
     onComplete();
   };
@@ -132,7 +132,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                     className="pr-20"
                   />
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
-                    .sei
+                    .lisk
                   </div>
                 </div>
 
@@ -196,7 +196,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                   <AvatarFallback className="text-xl">{username[0]}</AvatarFallback>
                 </Avatar>
               </div>
-              <h3 className="text-lg font-medium">@{username}.sei</h3>
+              <h3 className="text-lg font-medium">@{username}.lisk</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Generate a new wallet for your username
               </p>
@@ -205,7 +205,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
             <div className="space-y-1 bg-secondary/30 p-3 rounded-md">
               <p className="text-sm font-medium">What happens next:</p>
               <ul className="text-xs text-muted-foreground list-disc pl-5">
-                <li>We'll generate a new SEI wallet address for you</li>
+                <li>We'll generate a new EVM wallet address for you</li>
                 <li>Your username will be linked to this wallet address</li>
                 <li>You can use this wallet to send and receive payments</li>
               </ul>
@@ -246,7 +246,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
               </div>
               <h3 className="text-lg font-medium">Registration Complete!</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Your username @{username}.sei is now registered
+                Your username @{username}.lisk is now registered
               </p>
             </div>
 

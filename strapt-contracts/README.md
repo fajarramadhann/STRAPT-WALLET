@@ -10,6 +10,21 @@ Smart contracts for the STRAPT (Secure Transfer and Payment) platform.
 - Auto-refund for expired transfers
 - Supports IDRX and USDC tokens
 
+### STRAPT Drop
+- Distribute IDRX tokens to multiple recipients
+- Fixed or random amount distribution
+- Claim via link/QR code
+
+### Payment Stream
+- Stream payments over time to recipients
+- Configurable milestones
+- Pause/resume/cancel functionality
+
+### USDC Faucet
+- Testnet USDC distribution for testing
+- Configurable claim amounts and cooldown periods
+- Anti-spam protection
+
 ## Development
 
 ### Prerequisites
@@ -36,7 +51,16 @@ npx hardhat test
 
 4. Deploy contracts:
 ```bash
-npx hardhat run scripts/deploy.ts --network <network-name>
+npx hardhat run scripts/deploy.js --network <network-name>
+```
+
+5. Deploy USDC Faucet:
+```bash
+# Make the script executable
+chmod +x scripts/deploy-usdc-faucet.sh
+
+# Run the deployment script
+./scripts/deploy-usdc-faucet.sh
 ```
 
 ## Contract Architecture
@@ -47,6 +71,10 @@ npx hardhat run scripts/deploy.ts --network <network-name>
 
 ### Core Contracts
 - `ProtectedTransfer.sol`: Handles protected transfers with claim codes and expiry times
+- `ProtectedTransferV2.sol`: Enhanced version with additional features
+- `PaymentStream.sol`: Handles streaming payments with milestones
+- `StraptDrop.sol`: Manages token distribution to multiple recipients
+- `USDCFaucet.sol`: Testnet USDC distribution for testing
 
 ## Security Features
 

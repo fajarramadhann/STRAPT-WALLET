@@ -10,8 +10,8 @@ const BottomNav = () => {
   const navItems = [
     { name: 'Home', shortName: 'Home', path: '', icon: Home },
     { name: 'Pay Streams', shortName: 'Streams', path: 'streams', icon: BarChart2 },
-    { name: 'Savings', shortName: 'Savings', path: 'savings', icon: Wallet },
     { name: 'STRAPT Drop', shortName: 'Drop', path: 'strapt-drop', icon: Users },
+    { name: 'Savings', shortName: 'Savings', path: 'savings', icon: Wallet },
     { name: 'Profile', shortName: 'Profile', path: 'profile', icon: User },
   ];
 

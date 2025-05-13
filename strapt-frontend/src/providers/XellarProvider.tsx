@@ -5,7 +5,7 @@ import { XellarKitProvider, defaultConfig, darkTheme } from "@xellar/kit";
 import { liskSepolia, baseSepolia } from "viem/chains";
 
 const walletConnectProjectId = "0a6602a98f8e6ca23405a5c8cd8805e8";
-const xellarAppId = "a4140cfa-9133-4aa6-a0fe-061e3b69ebd1";
+const xellarAppId = "9ea103ba-8504-47c6-bb66-980f139368e6";
 
 export const config = defaultConfig({
   appName: "STRAPT",
