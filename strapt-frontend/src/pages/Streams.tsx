@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Play, Pause, StopCircle, PlusCircle, BarChart2, ArrowRight, Milestone, CircleDollarSign, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -28,6 +28,7 @@ import { useXellarWallet } from '@/hooks/use-xellar-wallet';
 import { Loading } from '@/components/ui/loading';
 import LiveStreamCounter from '@/components/LiveStreamCounter';
 import InfoTooltip from '@/components/InfoTooltip';
+import { useTokenBalances } from '@/hooks/use-token-balances';
 
 // UI Stream interface that extends the contract Stream type
 interface UIStream {
@@ -56,6 +57,7 @@ const Streams = () => {
   const [duration, setDuration] = useState(60);
   const [durationUnit, setDurationUnit] = useState<DurationUnit>('minutes');
   const [milestones, setMilestones] = useState<MilestoneType[]>([]);
+  const { tokens, isLoading: isLoadingTokens } = useTokenBalances();
   const [selectedToken, setSelectedToken] = useState<TokenOption>(tokens[0]);
   const [isCreatingStream, setIsCreatingStream] = useState(false);
   const { toast } = useToast();
@@ -78,6 +80,16 @@ const Streams = () => {
   // Convert contract streams to UI streams
   const [activeStreams, setActiveStreams] = useState<UIStream[]>([]);
   const [completedStreams, setCompletedStreams] = useState<UIStream[]>([]);
+  
+  // Update selected token when tokens array changes
+  useEffect(() => {
+    if (tokens.length > 0) {
+      // Find the token with the same symbol as the currently selected one
+      const currentSymbol = selectedToken?.symbol;
+      const newSelected = tokens.find(t => t.symbol === currentSymbol) || tokens[0];
+      setSelectedToken(newSelected);
+    }
+  }, [tokens]);
 
   // Process streams when they change
   useEffect(() => {
@@ -1016,10 +1028,5 @@ const Streams = () => {
     </div>
   );
 };
-
-const tokens: TokenOption[] = [
-  { symbol: 'IDRX', name: 'IDRX Token', balance: 1000.00, icon: '/IDRX BLUE COIN.svg' },
-  { symbol: 'USDC', name: 'USD Coin', balance: 500.45, icon: '/usd-coin-usdc-logo.svg' },
-];
 
 export default Streams;

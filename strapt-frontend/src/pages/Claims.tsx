@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Clock, ShieldCheck, Copy, QrCode, LockKeyhole, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +12,7 @@ import QRCode from '@/components/QRCode';
 import QRCodeScanner from '@/components/QRCodeScanner';
 import { useAccount } from 'wagmi';
 import { useProtectedTransferV2 } from '@/hooks/use-protected-transfer-v2';
+import dayjs from 'dayjs';
 
 interface TransferDetails {
   id: string;
@@ -27,6 +27,20 @@ interface TransferDetails {
   isLinkTransfer: boolean;
   passwordProtected?: boolean; // For backward compatibility
 }
+
+// Utility function to standardize claim code format
+const standardizeClaimCode = (code: string): string => {
+  // Trim any whitespace and ensure we have a valid string
+  if (!code) return '';
+  
+  // Remove any special formatting characters that might cause issues
+  let formatted = code.trim();
+  
+  // Log the processed code for debugging
+  console.log(`Standardized claim code from [${code}] to [${formatted}], length: ${formatted.length}`);
+  
+  return formatted;
+};
 
 const Claims = () => {
   const navigate = useNavigate();
@@ -44,6 +58,7 @@ const Claims = () => {
   const [manualTransferId, setManualTransferId] = useState('');
   const [manualClaimCode, setManualClaimCode] = useState('');
   const [manualClaimError, setManualClaimError] = useState('');
+  const [searchParams] = useSearchParams();
 
   // Get claim functions from useProtectedTransferV2
   const {
@@ -77,6 +92,19 @@ const Claims = () => {
     }
   }, [location.search]);
 
+  // Process URL parameters on component mount
+  useEffect(() => {
+    const id = searchParams.get('id');
+    const code = searchParams.get('code');
+    
+    if (id) {
+      console.log(`Processing transfer ID from URL: ${id}, code present: ${!!code}`);
+      // Standardize the claim code if present
+      const standardizedCode = code ? standardizeClaimCode(code) : '';
+      processTransferId(id, standardizedCode);
+    }
+  }, [searchParams, address]);
+
   const formatTimeRemaining = (timestamp: number) => {
     const now = Math.floor(Date.now() / 1000);
     const diffSecs = timestamp - now;
@@ -91,7 +119,7 @@ const Claims = () => {
     return `${diffHrs}h ${diffMins}m`;
   };
 
-  // Handle claiming a transfer with password
+  // Handle claiming with password
   const handleClaimWithPassword = async (transferId: string, password: string) => {
     if (!address) {
       toast.error('Please connect your wallet to claim this transfer');
@@ -112,19 +140,46 @@ const Claims = () => {
           setPasswordError('Claim code is required for this transfer');
           return false;
         }
-
-        const success = await claimTransfer(transferId, password);
-        if (success) {
-          toast.success('Password-protected transfer claimed successfully!');
-          setShowPasswordDialog(false);
-          setClaimCode('');
-          // Refresh the list of pending claims
-          // fetchPendingClaims();
-          return true;
+        
+        // Ensure claim code is properly formatted
+        const cleanPassword = standardizeClaimCode(password);
+        console.log('Attempting to claim with password:', cleanPassword, 'length:', cleanPassword.length);
+        
+        try {
+          const success = await claimTransfer(transferId, cleanPassword);
+          if (success) {
+            toast.success('Password-protected transfer claimed successfully!');
+            setShowPasswordDialog(false);
+            setClaimCode('');
+            // Refresh the list of pending claims
+            // fetchPendingClaims();
+            return true;
+          }
+          
+          setPasswordError('Failed to claim transfer. Please check the password.');
+          return false;
+        } catch (error) {
+          console.error('Error claiming transfer with password:', error);
+          
+          // Check for specific InvalidClaimCode error
+          if (error.message?.includes('InvalidClaimCode') || error.message?.includes('invalid claim code')) {
+            setPasswordError('Invalid password. Please double-check and try again.');
+            toast.error('Invalid password', {
+              description: 'The password you entered does not match the transfer. Please check for typos or spaces.'
+            });
+          } else if (error.message?.includes('already claimed')) {
+            setPasswordError('This transfer has already been claimed.');
+            toast.error('Already claimed', {
+              description: 'This transfer has already been claimed and cannot be claimed again.'
+            });
+          } else {
+            setPasswordError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast.error('Claim failed', {
+              description: 'An error occurred while claiming the transfer. Please try again.'
+            });
+          }
+          return false;
         }
-
-        setPasswordError('Failed to claim transfer. Please check the password.');
-        return false;
       }
 
       // If it doesn't require a password, use claimTransfer with empty password
@@ -398,54 +453,105 @@ const Claims = () => {
     }
   };
 
-  // Helper function to process a transfer ID with optional claim code
+  // Process a transfer ID from URL or QR code
   const processTransferId = async (transferId: string, claimCode?: string | null) => {
-    toast.info('Checking transfer details...');
+    if (!transferId) {
+      toast.error('Invalid transfer ID');
+      return;
+    }
+
+    // Clean up the transfer ID (remove any URL part if present)
+    let cleanTransferId = transferId;
+    if (transferId.includes('/')) {
+      cleanTransferId = transferId.split('/').pop() || '';
+    }
+    
+    // If the ID is a full URL, extract just the ID part
+    if (cleanTransferId.includes('?id=')) {
+      const parts = cleanTransferId.split('?id=');
+      cleanTransferId = parts[1]?.split('&')[0] || '';
+    }
+
+    console.log('Processing transfer ID:', cleanTransferId);
+
+    if (!cleanTransferId || cleanTransferId.length !== 66) {  // 0x + 64 hex chars
+      toast.error('Invalid transfer ID format');
+      return;
+    }
+
+    // Process the claim code if provided
+    let cleanClaimCode = '';
+    if (claimCode) {
+      // URL decode the claim code if needed
+      try {
+        // Check if it needs decoding
+        if (claimCode.includes('%')) {
+          cleanClaimCode = decodeURIComponent(claimCode);
+        } else {
+          cleanClaimCode = claimCode;
+        }
+        
+        // Standardize the format
+        cleanClaimCode = standardizeClaimCode(cleanClaimCode);
+        console.log('Processed claim code:', cleanClaimCode);
+      } catch (error) {
+        console.error('Error decoding claim code:', error);
+        cleanClaimCode = claimCode;
+      }
+    }
 
     try {
-      // First check if the transfer requires a password
-      const requiresPassword = await isPasswordProtected(transferId);
-      console.log('Transfer requires password:', requiresPassword);
+      // Check if the transfer exists and requires a password
+      const isProtected = await isPasswordProtected(cleanTransferId);
+      console.log('Transfer is password protected:', isProtected);
 
-      if (requiresPassword) {
-        if (claimCode) {
-          // If we have a claim code and it requires a password, show the password dialog with pre-filled code
-          setManualTransferId(transferId);
-          setManualClaimCode(claimCode);
+      // Get transfer details
+      const details = await getTransferDetails(cleanTransferId);
+
+      if (!details) {
+        toast.error('Transfer not found or has expired');
+        setManualTransferId('');
+        setManualClaimCode('');
+        return;
+      }
+
+      setActiveTransfer({
+        ...details,
+        passwordProtected: isProtected
+      });
+
+      if (isProtected) {
+        // Set the values in the password dialog
+        setManualTransferId(cleanTransferId);
+        
+        // If we have a claim code, pre-fill it
+        if (cleanClaimCode) {
+          setManualClaimCode(cleanClaimCode);
           setShowPasswordDialog(true);
-          toast.info('This transfer requires a password. Please confirm to claim.');
+          
+          // Optionally: automatically submit if both id and code are provided via URL
+          // This auto-submission can be enabled/disabled based on UX preferences
+          if (cleanTransferId && cleanClaimCode) {
+            console.log('Auto-attempting claim with provided password...');
+            setTimeout(() => {
+              handleClaimWithPassword(cleanTransferId, cleanClaimCode);
+            }, 500); // Small delay to let the UI update
+          }
         } else {
-          // If it requires a password but none was provided, show the password dialog
-          setManualTransferId(transferId);
+          // Show password dialog
           setShowPasswordDialog(true);
-          toast.info('This transfer requires a password. Please enter it.');
+          toast.info('This transfer requires a password for claiming.');
         }
       } else {
-        // If no password required, claim directly
-        toast.info('Claiming transfer without password...');
-        await handleClaimLinkTransfer(transferId);
+        // For non-password-protected transfers, try to claim directly
+        toast.info('Attempting to claim transfer without password...');
+        await handleClaimLinkTransfer(cleanTransferId);
       }
     } catch (error) {
-      console.error("Error processing transfer ID:", error);
-
-      // Check for specific errors
-      if (error.message?.includes('rejected') || error.message?.includes('denied')) {
-        toast.error("Transaction cancelled", {
-          description: "You cancelled the transaction"
-        });
-      } else if (error.message?.includes('insufficient funds')) {
-        toast.error("Insufficient funds", {
-          description: "You do not have enough funds to pay for transaction fees"
-        });
-      } else if (error.message?.includes('not found') || error.message?.includes('does not exist')) {
-        toast.error("Transfer not found", {
-          description: "The transfer ID you entered does not exist"
-        });
-      } else {
-        toast.error("Error processing transfer", {
-          description: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+      console.error('Error processing transfer ID:', error);
+      toast.error('Error processing transfer', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   };
 

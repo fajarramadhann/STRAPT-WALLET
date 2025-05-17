@@ -1,4 +1,3 @@
-
 import { Shield, Loader2, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -61,7 +60,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
       // Call the appropriate transfer function based on transfer type
       if (transferType === 'direct') {
         try {
-          // For direct transfers without password, we can skip approval
+          // For direct transfers, we can skip approval
           // The createProtectedTransfer function will handle this case
           const result = await createProtectedTransfer();
           console.log('Direct transfer result:', result);
@@ -105,20 +104,20 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
       <CardContent className="space-y-6">
         {/* Transfer Steps */}
         <div className="mb-2">
-          {/* Show special alert for direct transfers without password protection */}
-          {transferType === 'direct' && !withPassword && !isDirectTransferLoading && (
+          {/* Show special alert for direct transfers */}
+          {transferType === 'direct' && !isDirectTransferLoading && (
             <Alert className="mt-4 bg-blue-50 border-blue-200">
               <Check className="h-4 w-4 text-blue-500" />
               <AlertTitle className="text-blue-700">Instant Direct Transfer</AlertTitle>
               <AlertDescription className="text-blue-600">
                 You've selected an instant direct transfer. This will send {selectedToken.symbol} tokens directly to the recipient's
-                wallet without using the protected transfer contract. The transfer will be immediate and cannot be refunded.
+                wallet. The transfer will be immediate and cannot be refunded.
               </AlertDescription>
             </Alert>
           )}
 
           {/* Show loading animation for direct transfers */}
-          {transferType === 'direct' && !withPassword && isDirectTransferLoading && (
+          {transferType === 'direct' && isDirectTransferLoading && (
             <Alert className="mt-4 bg-blue-50 border-blue-200">
               <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
               <AlertTitle className="text-blue-700">Processing Direct Transfer</AlertTitle>
@@ -132,7 +131,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
           )}
 
           {/* Only show approval alerts for protected transfers */}
-          {(transferType !== 'direct' || withPassword) && !isApproved && !isApproving && (
+          {transferType !== 'direct' && !isApproved && !isApproving && (
             <Alert variant="default" className="mt-4">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Token Approval Required</AlertTitle>
@@ -157,10 +156,10 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
             <Alert className="mt-4 bg-green-50 border-green-200">
               <Check className="h-4 w-4 text-green-500" />
               <AlertTitle className="text-green-700">
-                {transferType === 'direct' && !withPassword ? 'Ready to Transfer' : 'Token Approved'}
+                {transferType === 'direct' ? 'Ready to Transfer' : 'Token Approved'}
               </AlertTitle>
               <AlertDescription className="text-green-600">
-                {transferType === 'direct' && !withPassword
+                {transferType === 'direct'
                   ? `You can now send your ${selectedToken.symbol} tokens directly to the recipient.`
                   : `You have successfully approved the contract to use your ${selectedToken.symbol} tokens.
                      Please click the "Confirm Transfer" button below to complete your transfer.`
@@ -195,7 +194,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
             <span className="text-sm text-muted-foreground">Method:</span>
             <span className="font-medium">
               {transferType === 'direct'
-                ? (withPassword ? 'Protected Direct Transfer' : 'Instant Direct Transfer')
+                ? 'Instant Direct Transfer'
                 : 'Claim via Link/QR'}
             </span>
           </div>
@@ -206,7 +205,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
             </div>
           )}
           {/* Auto-refund timeout is always 24 hours, no need to show it in the UI */}
-          {withPassword && (
+          {transferType !== 'direct' && withPassword && (
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Password Protected:</span>
               <span className="font-medium">Yes</span>
@@ -217,7 +216,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
           <div className="flex justify-between mb-2">
             <span className="text-sm text-muted-foreground">Transfer Fee:</span>
             <span className="font-medium">
-              {transferType === 'direct' && !withPassword
+              {transferType === 'direct'
                 ? 'No fee'
                 : `0.001 ${selectedToken.symbol}`}
             </span>
@@ -225,7 +224,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
           <div className="flex justify-between font-medium">
             <span>Total:</span>
             <span>
-              {transferType === 'direct' && !withPassword
+              {transferType === 'direct'
                 ? `${Number.parseFloat(amount).toFixed(3)} ${selectedToken.symbol}`
                 : `${(Number.parseFloat(amount) + 0.001).toFixed(3)} ${selectedToken.symbol}`}
             </span>
@@ -233,8 +232,8 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
         </div>
       </CardContent>
       <CardFooter>
-        {/* For direct transfers without password protection, show transfer button directly */}
-        {transferType === 'direct' && !withPassword ? (
+        {/* For direct transfers, show transfer button directly */}
+        {transferType === 'direct' ? (
           <Button
             type="button"
             onClick={handleConfirm}

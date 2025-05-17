@@ -1,11 +1,13 @@
 import { formatUnits } from 'viem';
-import { waitForTransactionReceipt } from 'wagmi/actions';
+import { keccak256, stringToHex } from 'viem';
+import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
 import ProtectedTransferV2ABI from '@/contracts/ProtectedTransferV2.json';
 import { TokenType, useTokenUtils } from './useTokenUtils';
 import { useTransactionState } from './useTransactionState';
 import { useErrorHandler } from './useErrorHandler';
 import { useClaimCodeUtils } from './useClaimCodeUtils';
 import { useContractUtils } from './useContractUtils';
+import { TokenType as TokenTypeFromTypes } from '@/types/tokens';
 
 // Re-export TokenType for use in other components
 export type { TokenType };
@@ -102,129 +104,113 @@ export function useProtectedTransferV2() {
     }
   };
 
-  // Create a direct transfer
+  // Add this function near the top of the file
+  const simulateTransaction = async (
+    config: any,
+    request: any,
+    maxRetries: number = 3
+  ): Promise<boolean> => {
+    let retries = 0;
+    
+    while (retries < maxRetries) {
+      try {
+        const { request: simulatedRequest } = await simulateContract(config, {
+          ...request,
+          chain: config.chains[0] // Add chain to request
+        });
+        return true;
+      } catch (error) {
+        console.error(`Simulation attempt ${retries + 1} failed:`, error);
+        
+        // Check if error is retryable
+        const errorMessage = error?.message || '';
+        if (errorMessage.includes('network error') || 
+            errorMessage.includes('timeout') ||
+            errorMessage.includes('rate limit')) {
+          retries++;
+          if (retries < maxRetries) {
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 1000));
+            continue;
+          }
+        }
+        
+        // If error is not retryable or we've exhausted retries, throw
+        throw error;
+      }
+    }
+    
+    throw new Error('Transaction simulation failed after maximum retries');
+  };
+
+  // Update the createDirectTransfer function
   const createDirectTransfer = async (
     recipient: string,
     tokenType: TokenType,
     amount: string,
     expiryTimestamp: number,
-    withPassword: boolean = true,
-    customPassword: string | null = null,
-  ) => {
+    withPassword: boolean,
+    customPassword?: string | null
+  ): Promise<{ transferId: string; claimCode?: string } | undefined> => {
     try {
       setIsLoading(true);
-
-      // Use custom password if provided and password protection is enabled, otherwise generate a random one
-      const claimCode = withPassword ? (customPassword || generateClaimCode()) : '';
-      const claimCodeHash = withPassword ? hashClaimCode(claimCode) : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
-
-      // Get token address and parse amount
-      const tokenAddress = getTokenAddress(tokenType);
-      const parsedAmount = parseTokenAmount(amount, tokenType);
-
-      // Ensure expiryTimestamp is valid (at least 1 hour in the future)
-      const minExpiryTime = Math.floor(Date.now() / 1000) + 3600; // Current time + 1 hour
-      const validExpiryTimestamp = expiryTimestamp > minExpiryTime ? expiryTimestamp : getExpiryTimestamp(24);
-
-      console.log('Transfer expiry timestamp:', validExpiryTimestamp, 'current time:', Math.floor(Date.now() / 1000));
-
-      // Get the account
-      const { getAccount, simulateContract, writeContract: writeContractAction } = await import('wagmi/actions');
+      
+      // Import config for wagmi actions
       const { config } = await import('@/providers/XellarProvider');
+      const { getAccount, writeContract: writeContractAction } = await import('wagmi/actions');
       const account = getAccount(config);
 
       if (!account || !account.address) {
-        console.error("No wallet connected or account is undefined");
         throw new Error("No wallet connected");
       }
 
-      // Log the arguments for debugging
-      console.log('Preparing direct transfer with args:', {
-        recipient,
-        tokenAddress,
-        parsedAmount: parsedAmount.toString(),
-        expiryTimestamp: validExpiryTimestamp,
-        hasPassword: withPassword,
-        claimCodeHash,
-        account: account.address
-      });
-
-      // Simulate the transaction first
-      const { request } = await simulateContract(config, {
+      // Prepare transaction request
+      const request = {
         abi: ProtectedTransferV2ABI.abi,
         address: PROTECTED_TRANSFER_V2_ADDRESS,
-        functionName: 'createDirectTransfer',
+        functionName: 'createTransfer',
         args: [
-          recipient,
-          tokenAddress,
-          parsedAmount,
-          BigInt(validExpiryTimestamp),
+          recipient as `0x${string}`,
+          getTokenAddress(tokenType),
+          parseTokenAmount(tokenType, amount),
+          BigInt(expiryTimestamp),
           withPassword,
-          claimCodeHash
+          customPassword ? hashClaimCode(customPassword) : '0x0000000000000000000000000000000000000000000000000000000000000000'
         ],
         account: account.address,
+      };
+
+      // Simulate transaction with retry logic
+      try {
+        await simulateTransaction(config, request);
+      } catch (simulationError) {
+        console.error('Transaction simulation failed:', simulationError);
+        throw simulationError;
+      }
+
+      // Execute transaction
+      const hash = await writeContractAction(config, request);
+      
+      // Wait for confirmation with timeout
+      const receipt = await waitForTransactionReceipt(config, { 
+        hash,
+        timeout: 60_000 // 60 seconds timeout
       });
 
-      // Send the transaction - this will prompt the user to sign
-      console.log('Sending transaction request:', request);
-      const hash = await writeContractAction(config, request);
-      console.log('Transaction sent with hash:', hash);
-
-      // Wait for transaction to be confirmed
-      console.log('Waiting for transaction receipt with hash:', hash);
-      const receipt = await waitForTransactionReceipt(config, { hash });
-      console.log('Transaction receipt received:', receipt);
-
-      // Extract transfer ID from event logs
-      let transferId = '';
-      if (receipt?.logs) {
-        console.log('Transaction logs:', receipt.logs);
-
-        // Find the TransferCreated event and extract the transfer ID
-        for (const log of receipt.logs) {
-          try {
-            // Check if this log is from our contract
-            if (log.address.toLowerCase() === PROTECTED_TRANSFER_V2_ADDRESS.toLowerCase()) {
-              // The TransferCreated event signature
-              const transferCreatedSignature = '0x7d84a6263ae0d98d3329bd7b46bb4e8d6f98cd35a7adb45c274c8b7fd5ebd5e0';
-
-              if (log.topics[0] === transferCreatedSignature) {
-                console.log('Found TransferCreated event');
-                transferId = log.topics[1] as `0x${string}`;
-                console.log('Extracted transfer ID:', transferId);
-                break;
-              }
-            }
-          } catch (e) {
-            console.error('Error parsing log:', e);
-          }
-        }
-
-        // If we still don't have a transfer ID, try a different approach
-        if (!transferId && receipt.logs.length > 0) {
-          // Try to find any log from our contract
-          const contractLogs = receipt.logs.filter(
-            (log: { address: string; topics: string[] }) =>
-              log.address.toLowerCase() === PROTECTED_TRANSFER_V2_ADDRESS.toLowerCase()
-          );
-
-          if (contractLogs.length > 0 && contractLogs[0].topics.length > 1) {
-            transferId = contractLogs[0].topics[1] as `0x${string}`;
-            console.log('Using first topic as transfer ID:', transferId);
-          }
-        }
+      if (receipt.status !== 'success') {
+        throw new Error('Transaction failed on-chain');
       }
 
-      // Set the current transfer ID
-      if (transferId) {
-        setCurrentTransferId(transferId);
+      // Extract transfer ID from transaction receipt
+      const transferId = receipt.logs[0]?.topics[1] || null;
+      
+      if (!transferId) {
+        throw new Error('Failed to get transfer ID from transaction');
       }
 
-      // Return claim code and transfer ID
       return {
-        claimCode: withPassword ? claimCode : '',
-        transferId: transferId || null,
-        withPassword
+        transferId,
+        claimCode: customPassword || undefined
       };
     } catch (error) {
       handleError(error, 'Failed to create transfer');
@@ -245,9 +231,30 @@ export function useProtectedTransferV2() {
     try {
       setIsLoading(true);
 
-      // Use custom password if provided and password protection is enabled, otherwise use empty string
-      const claimCode = withPassword ? (customPassword || generateClaimCode()) : '';
-      const claimCodeHash = withPassword ? hashClaimCode(claimCode) : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
+      // For password-protected transfers, ensure we use the custom password if provided
+      let claimCode = '';
+      let claimCodeHash = '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
+      
+      if (withPassword) {
+        // If custom password is provided, use it, otherwise generate a random one
+        claimCode = customPassword ? customPassword.trim() : generateClaimCode();
+        
+        // Log for debugging
+        console.log('Using claim code for protected transfer:', claimCode);
+        console.log('Claim code length:', claimCode.length);
+        
+        // Hash the claim code using the same method as the contract
+        try {
+          // Use stringToHex with exact string for consistent hashing
+          const stringToHash = claimCode;
+          console.log('String being hashed (exact chars):', stringToHash, 'length:', stringToHash.length);
+          claimCodeHash = keccak256(stringToHex(stringToHash));
+          console.log('Generated claim code hash:', claimCodeHash);
+        } catch (hashError) {
+          console.error('Error hashing claim code:', hashError);
+          throw new Error('Failed to hash claim code');
+        }
+      }
 
       // Get token address and parse amount
       const tokenAddress = getTokenAddress(tokenType);
@@ -287,18 +294,33 @@ export function useProtectedTransferV2() {
         account: account.address
       });
 
+      // Verify parameters match contract expectations
+      const args = [
+        tokenAddress,
+        parsedAmount,
+        BigInt(validExpiryTimestamp),
+        withPassword,
+        claimCodeHash
+      ];
+
+      const expectedTypes = [
+        'address',
+        'uint256',
+        'uint256',
+        'bool',
+        'bytes32'
+      ];
+
+      if (!verifyContractParameters('createLinkTransfer', args, expectedTypes)) {
+        throw new Error('Contract parameter validation failed. Check console for details.');
+      }
+
       // Simulate the transaction first
       const { request } = await simulateContract(config, {
         abi: ProtectedTransferV2ABI.abi,
         address: PROTECTED_TRANSFER_V2_ADDRESS,
         functionName: 'createLinkTransfer',
-        args: [
-          tokenAddress,
-          parsedAmount,
-          BigInt(validExpiryTimestamp),
-          withPassword,
-          claimCodeHash
-        ],
+        args: args,
         account: account.address,
       });
 
@@ -381,39 +403,86 @@ export function useProtectedTransferV2() {
 
       // Import config for wagmi actions
       const { config } = await import('@/providers/XellarProvider');
-      const { getAccount, simulateContract, writeContract: writeContractAction } = await import('wagmi/actions');
+      const { getAccount, writeContract: writeContractAction } = await import('wagmi/actions');
       const account = getAccount(config);
 
       if (!account || !account.address) {
-        console.error("No wallet connected or account is undefined");
         throw new Error("No wallet connected");
       }
 
-      console.log('Claiming transfer with ID:', transferId, 'and claim code:', claimCode);
+      // Trim the claim code to remove any whitespace
+      const trimmedClaimCode = claimCode.trim();
+      
+      console.log('Claiming transfer with ID:', transferId, 'and claim code length:', trimmedClaimCode.length);
 
+      // Check if this transfer requires a password
+      let requiresPassword = false;
       try {
-        // Simulate the transaction first
-        const { request } = await simulateContract(config, {
+        const transferDetails = await getTransferDetails(transferId);
+        requiresPassword = transferDetails?.hasPassword || false;
+      } catch (passwordCheckError) {
+        console.error('Error checking if transfer is password protected:', passwordCheckError);
+        return false;
+      }
+
+      // Verify we have a claim code for password-protected transfers
+      if (requiresPassword && !trimmedClaimCode) {
+        throw new Error('This transfer requires a password. Please enter the password to claim the funds.');
+      }
+
+      // Prepare the transaction arguments
+      const args = [
+        transferId as `0x${string}`, 
+        trimmedClaimCode
+      ];
+
+      // Execute transaction directly without simulation for non-password protected transfers
+      // This prevents the double signing issue
+      try {
+        const hash = await writeContractAction(config, {
           abi: ProtectedTransferV2ABI.abi,
           address: PROTECTED_TRANSFER_V2_ADDRESS,
           functionName: 'claimTransfer',
-          args: [transferId as `0x${string}`, claimCode],
+          args: args,
           account: account.address,
+          chain: config.chains[0],
         });
-
-        // Send the transaction - this will prompt the user to sign
-        console.log('Sending transaction request:', request);
-        const hash = await writeContractAction(config, request);
-        console.log('Transaction sent with hash:', hash);
-
-        // Wait for transaction to be confirmed
-        console.log('Waiting for transaction receipt with hash:', hash);
-        const receipt = await waitForTransactionReceipt(config, { hash });
-        console.log('Transaction receipt received:', receipt);
-
+        
+        console.log('Transaction sent, hash:', hash);
+        
+        // Wait for confirmation with timeout
+        const receipt = await waitForTransactionReceipt(config, { 
+          hash,
+          timeout: 60_000 // 60 seconds timeout
+        });
+        
+        if (receipt.status !== 'success') {
+          throw new Error('Transaction failed on-chain');
+        }
+        
         return true;
       } catch (error) {
-        console.error('Error in claim transfer transaction:', error);
+        console.error('Error in claim transaction:', error);
+        
+        // Handle specific errors
+        const errorMessage = error?.message || '';
+        
+        if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
+          throw new Error('Transaction was cancelled by the user');
+        }
+        
+        if (errorMessage.includes('InvalidClaimCode')) {
+          throw new Error('Invalid password. Please double-check and try again.');
+        }
+        
+        if (errorMessage.includes('TransferNotClaimable') || errorMessage.includes('already claimed')) {
+          throw new Error('This transfer has already been claimed.');
+        }
+        
+        if (errorMessage.includes('TransferExpired')) {
+          throw new Error('The claim period for this transfer has expired.');
+        }
+        
         throw error;
       }
     } catch (error) {
@@ -650,6 +719,56 @@ export function useProtectedTransferV2() {
       handleError(error, 'Error getting recipient transfers');
       return [];
     }
+  };
+
+  // Utility function to verify contract parameters before sending
+  const verifyContractParameters = (
+    functionName: string, 
+    params: any[], 
+    expectedTypes: string[]
+  ): boolean => {
+    console.log(`Verifying parameters for ${functionName}:`, params);
+    
+    if (params.length !== expectedTypes.length) {
+      console.error(`Parameter count mismatch for ${functionName}: expected ${expectedTypes.length}, got ${params.length}`);
+      return false;
+    }
+    
+    for (let i = 0; i < params.length; i++) {
+      const param = params[i];
+      const expectedType = expectedTypes[i];
+      
+      // Check address type
+      if (expectedType === 'address' && typeof param === 'string') {
+        if (!param.startsWith('0x') || param.length !== 42) {
+          console.error(`Invalid address format for parameter ${i}: ${param}`);
+          return false;
+        }
+      }
+      
+      // Check for bigint or number
+      if (expectedType === 'uint256' && typeof param !== 'bigint') {
+        console.error(`Parameter ${i} should be BigInt: ${param}`);
+        return false;
+      }
+      
+      // Check for boolean
+      if (expectedType === 'bool' && typeof param !== 'boolean') {
+        console.error(`Parameter ${i} should be boolean: ${param}`);
+        return false;
+      }
+      
+      // Check for bytes32
+      if (expectedType === 'bytes32' && typeof param === 'string') {
+        if (!param.startsWith('0x') || param.length !== 66) {
+          console.error(`Invalid bytes32 format for parameter ${i}: ${param}`);
+          return false;
+        }
+      }
+    }
+    
+    console.log(`All parameters for ${functionName} verified successfully`);
+    return true;
   };
 
   // Return all the functions and values

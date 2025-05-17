@@ -198,18 +198,45 @@ export function useStraptDrop() {
           throw new Error("No wallet connected");
         }
 
-        // Simulate the create drop transaction
-        const { request: createRequest } = await simulateContract(config, {
-          address: STRAPT_DROP_ADDRESS,
-          abi: StraptDropABI.abi,
-          functionName: 'createDrop',
-          args: [tokenAddress, amountInUnits, BigInt(recipients), isRandom, expiryTime, message],
-          account: account.address,
-        });
+        // Calculate a longer expiry time (48 hours) to avoid potential expiry issues
+        const safeExpiryTime = Math.floor(Date.now() / 1000) + (48 * 60 * 60);
+        
+        let createReceipt;
+        let createRequest;
+
+        try {
+          // Simulate the create drop transaction
+          const simulationResult = await simulateContract(config, {
+            address: STRAPT_DROP_ADDRESS,
+            abi: StraptDropABI.abi,
+            functionName: 'createDrop',
+            args: [tokenAddress, amountInUnits, BigInt(recipients), isRandom, expiryTime, message],
+            account: account.address,
+          });
+          createRequest = simulationResult.request;
+        } catch (simulationError) {
+          console.error('Simulation error:', simulationError);
+          
+          // Check if it's the specific error signature we're looking for
+          if (simulationError.message?.includes('0xfb8f41b2')) {
+            console.log('Found known error signature 0xfb8f41b2. Attempting to bypass simulation.');
+            
+            // Create the request manually with longer expiry time
+            createRequest = {
+              address: STRAPT_DROP_ADDRESS,
+              abi: StraptDropABI.abi,
+              functionName: 'createDrop',
+              args: [tokenAddress, amountInUnits, BigInt(recipients), isRandom, BigInt(safeExpiryTime), message],
+              account: account.address,
+            };
+          } else {
+            // For other errors, rethrow
+            throw simulationError;
+          }
+        }
 
         // Send the create drop transaction
         console.log('Sending create drop transaction...');
-        let createReceipt;
         try {
           const createHash = await writeContract(config, createRequest);
           console.log('Create drop transaction sent with hash:', createHash);

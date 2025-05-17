@@ -1,4 +1,3 @@
-
 import { Shield, Clock, Copy, QrCode, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -112,8 +111,8 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
             </Button>
           </div>
 
-          {/* Display Claim Code if available (for both types if password protected) */}
-          {withPassword && claimCode && (
+          {/* Display Claim Code if available (only for claim transfers with password) */}
+          {transferType === 'claim' && withPassword && claimCode && (
             <div className="mt-3 border-t border-border pt-3">
               <div className="flex items-center justify-center mb-1">
                 <Key className="h-4 w-4 mr-1 text-amber-500" />
@@ -127,6 +126,9 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
                 Share this code securely with the recipient. They will need it to claim the funds.
+              </p>
+              <p className="text-xs text-amber-600 mt-1">
+                <strong>Important:</strong> The password is not included in the link for security. The recipient must enter it manually.
               </p>
             </div>
           )}

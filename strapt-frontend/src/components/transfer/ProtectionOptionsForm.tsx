@@ -1,4 +1,3 @@
-
 import { Shield, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,42 +28,55 @@ const ProtectionOptionsForm = ({ onNext }: ProtectionOptionsFormProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Password protection for both transfer types */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <div className="flex items-center">
-              <Lock className="h-4 w-4 mr-2 text-muted-foreground" />
-              <label htmlFor="password" className="text-sm font-medium">
-                Password Protection
-              </label>
+        {/* Password protection only for claim transfers */}
+        {transferType === 'claim' && (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center">
+                  <Lock className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <label htmlFor="password" className="text-sm font-medium">
+                    Password Protection
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {withPassword
+                    ? 'Recipient must enter a password to claim funds'
+                    : 'Anyone with the link can claim funds without a password'}
+                </p>
+              </div>
+              <Switch
+                id="password"
+                checked={withPassword}
+                onCheckedChange={setWithPassword}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {transferType === 'direct'
-                ? 'Recipient must enter a password to receive funds'
-                : withPassword
-                  ? 'Recipient must enter a password to claim funds'
-                  : 'Anyone with the link can claim funds without a password'}
-            </p>
-          </div>
-          <Switch
-            id="password"
-            checked={withPassword}
-            onCheckedChange={setWithPassword}
-          />
-        </div>
 
-        {withPassword && (
-          <div className="space-y-2 pl-6">
-            <label htmlFor="password-input" className="text-sm font-medium">
-              Password for Recipient
-            </label>
-            <Input
-              id="password-input"
-              type="password"
-              placeholder="Enter a password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            {withPassword && (
+              <div className="space-y-2 pl-6">
+                <label htmlFor="password-input" className="text-sm font-medium">
+                  Password for Recipient
+                </label>
+                <Input
+                  id="password-input"
+                  type="password"
+                  placeholder="Enter a password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            )}
+          </>
+        )}
+        
+        {/* Show information for direct transfers */}
+        {transferType === 'direct' && (
+          <div className="flex items-center">
+            <Lock className="h-4 w-4 mr-2 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Direct transfers send tokens immediately to the recipient's wallet address. 
+              No password protection is needed for direct transfers.
+            </p>
           </div>
         )}
       </CardContent>

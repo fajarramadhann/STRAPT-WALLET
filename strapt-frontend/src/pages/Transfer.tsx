@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -24,13 +23,26 @@ const TransferContent = () => {
     withPassword
   } = useTransferContext();
 
+  // Skip protection options step for direct transfers
+  useEffect(() => {
+    if (step === 2 && transferType === 'direct') {
+      nextStep(); // Skip to confirmation step
+    }
+  }, [step, transferType]);
+
   const nextStep = () => {
     setStep(step + 1);
     window.scrollTo(0, 0);
   };
 
   const prevStep = () => {
-    setStep(step - 1);
+    // If we're at the confirmation step and this is a direct transfer,
+    // go back to step 1 (skip protection options)
+    if (step === 3 && transferType === 'direct') {
+      setStep(1);
+    } else {
+      setStep(step - 1);
+    }
   };
 
   const resetTransfer = () => {
@@ -94,7 +106,7 @@ const TransferContent = () => {
           <RecipientDetailsForm onNext={nextStep} />
         )}
 
-        {step === 2 && (
+        {step === 2 && transferType === 'claim' && (
           <ProtectionOptionsForm onNext={nextStep} />
         )}
 

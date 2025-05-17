@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { TokenOption } from '@/components/TokenSelect';
 import { useProtectedTransferV2, TokenType } from '@/hooks/use-protected-transfer-v2';
@@ -121,6 +120,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
     checkAllowance,
     USDC_ADDRESS,
     IDRX_ADDRESS,
+    isPasswordProtected,
   } = useProtectedTransferV2();
 
   // Format timeout for display - always returns 24 hours
@@ -182,13 +182,28 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      // For direct transfers without password protection, we don't need approval
+      // For direct transfers, we don't need approval
       // as we'll use a direct ERC20 transfer
-      if (transferType === 'direct' && !withPassword) {
-        // Skip approval for direct transfers without password
+      if (transferType === 'direct') {
+        // Skip approval for direct transfers
         setIsApproved(true);
         toast.success("Direct transfer doesn't require approval");
         return true;
+      }
+
+      // First check if we already have sufficient allowance
+      // This avoids unnecessary approval transactions
+      try {
+        const hasAllowance = await checkAllowance(getTokenType(), amount, address);
+        if (hasAllowance) {
+          console.log('Sufficient allowance already exists');
+          setIsApproved(true);
+          toast.success("Token already approved");
+          return true;
+        }
+      } catch (error) {
+        console.error('Error checking allowance:', error);
+        // Continue with approval process even if allowance check fails
       }
 
       // Get token ABI based on selected token
@@ -199,38 +214,65 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       // Parse amount with correct decimals
       const { parseUnits } = await import('viem');
       const decimals = selectedToken.symbol === 'USDC' ? 6 : 2;
-      const parsedAmount = parseUnits(amount, decimals);
-
+      
+      // Use a much larger approval amount to avoid frequent re-approvals
+      // For safety, we'll approve for a large amount (1,000,000 tokens)
+      // This is a common pattern to reduce transactions and gas costs
+      const safetyFactor = BigInt("1000000000000"); // A very large multiplier
+      
       // Get token address
       const tokenAddress = getTokenAddress();
 
       // Get protected transfer contract address
       const protectedTransferAddress = (await import('@/contracts/contract-config.json')).default.ProtectedTransferV2.address as `0x${string}`;
 
-      // Approve token transfer with account parameter
-      const hash = await writeContract(config, {
-        abi: tokenABI,
-        functionName: 'approve',
-        args: [protectedTransferAddress, parsedAmount],
-        address: tokenAddress,
-        account: address,
-        chain: config.chains[0], // Use the first chain in the config
-      });
+      try {
+        console.log('Approving token for maximum allowance');
+        
+        // Use the maximum possible approval (2^256 - 1) to avoid future approvals
+        const maxApproval = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        
+        const hash = await writeContract(config, {
+          abi: tokenABI,
+          functionName: 'approve',
+          args: [protectedTransferAddress, maxApproval],
+          address: tokenAddress,
+          account: address,
+          chain: config.chains[0], // Use the first chain in the config
+        });
 
-      // Wait for transaction to be confirmed
-      const receipt = await waitForTransactionReceipt(config, {
-        hash
-      });
+        // Wait for transaction to be confirmed
+        const receipt = await waitForTransactionReceipt(config, {
+          hash
+        });
 
-      if (receipt.status === 'success') {
-        setIsApproved(true);
-        toast.success("Token approval successful");
-        return true;
+        if (receipt.status === 'success') {
+          // After a successful approval transaction, assume it worked
+          // This avoids issues with some tokens that don't properly return values
+          setIsApproved(true);
+          toast.success("Token approval successful");
+          return true;
+        }
+
+        toast.error("Token approval failed");
+        console.log(receipt);
+        return false;
+      } catch (error) {
+        console.error('Error approving token:', error);
+        
+        // Check for user rejection vs other errors
+        if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+          toast.error("Approval rejected", {
+            description: "You canceled the approval transaction"
+          });
+        } else {
+          toast.error("Failed to approve token", {
+            description: "An error occurred while approving the token. Please try again."
+          });
+        }
+        
+        return false;
       }
-
-      toast.error("Token approval failed");
-      console.log(receipt);
-      return false;
     } catch (error) {
       console.error('Error approving token:', error);
       toast.error("Failed to approve token");
@@ -254,15 +296,15 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      // For direct transfers without password protection, we don't need approval
+      // For direct transfers, we don't need approval
       // For all other transfers, check if token is already approved
-      if (!isApproved && !(transferType === 'direct' && !withPassword)) {
+      if (!isApproved && transferType !== 'direct') {
         toast.error("Please approve token transfer first");
         return false;
       }
 
-      // For direct transfers without password protection, use standard ERC20 transfer
-      if (transferType === 'direct' && !withPassword) {
+      // For direct transfers, use standard ERC20 transfer
+      if (transferType === 'direct') {
         try {
           // Set loading state for direct transfer
           setIsDirectTransferLoading(true);
@@ -319,7 +361,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // For protected transfers (with password or link/QR transfers)
+      // For protected transfers (link/QR transfers)
       // Use fixed 24-hour expiry timestamp if withTimeout is true, otherwise no expiry
       const expiryTimestamp = withTimeout ? getExpiryTimestamp() : 0; // 0 means no expiry
 
@@ -328,7 +370,8 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
 
       // Create the protected transfer
       // For Link/QR transfers, recipient can be empty
-      const recipientAddress = transferType === 'direct' ? recipient : (recipient || '0x0000000000000000000000000000000000000000');
+      // This fixes type error by checking string values, not enum types
+      const recipientAddress = recipient || '0x0000000000000000000000000000000000000000';
 
       const result = await createDirectTransfer(
         recipientAddress,
@@ -349,11 +392,12 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
 
         // Generate transfer link with real domain
         const baseUrl = window.location.origin;
-        const link = `${baseUrl}/app/claims?id=${result.transferId}&code=${result.claimCode}`;
+        // For password-protected transfers, don't include the password in the URL
+        const link = `${baseUrl}/app/claims?id=${result.transferId}`;
         setTransferLink(link);
 
         toast.success("Transfer created successfully", {
-          description: `${amount} ${selectedToken.symbol} sent to ${recipient.slice(0, 6)}...${recipient.slice(-4)}`
+          description: `${amount} ${selectedToken.symbol} sent to ${recipient ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}` : 'anyone with the link'}`
         });
 
         // Reset approval state for next transfer
@@ -390,12 +434,8 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   // Create a protected link transfer
   const createProtectedLinkTransfer = async (): Promise<boolean | undefined> => {
     try {
-      // Get the current account
-      const { getAccount } = await import('wagmi/actions');
-      const { config } = await import('@/providers/XellarProvider');
-      const account = getAccount(config);
-
-      if (!account || !account.address) {
+      // Check if wallet is connected
+      if (!address) {
         toast.error("No wallet connected");
         return false;
       }
@@ -405,21 +445,9 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      // For Link/QR transfers, recipient is optional
-      // If no recipient is provided, anyone with the link can claim the funds
-
       // Check if token is already approved
       if (!isApproved) {
         toast.error("Please approve token transfer first");
-        return false;
-      }
-
-      // Double-check allowance to make sure it's sufficient
-      const hasAllowance = await checkAllowance(getTokenType(), amount, account.address);
-
-      if (!hasAllowance) {
-        toast.error("Insufficient token allowance. Please approve the token first.");
-        setIsApproved(false); // Reset approval state
         return false;
       }
 
@@ -432,7 +460,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       if (withPassword) {
         console.log('Creating password-protected link transfer');
 
-        // Generate a custom password if password protection is enabled
+        // Use the custom password provided by the user or generate a new one
         const customPassword = password || generateClaimCode();
         console.log('Using password:', customPassword);
 
@@ -445,14 +473,30 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
           customPassword
         );
 
-        // Save the claim code
-        setClaimCode(result.claimCode || '');
+        // Save the claim code - make sure the claim code is properly stored
+        setClaimCode(result?.claimCode || customPassword || '');
 
         // Generate transfer link with real domain and claim code
         if (result?.transferId) {
           const baseUrl = window.location.origin;
-          const link = `${baseUrl}/app/claims?id=${result.transferId}&code=${result.claimCode}`;
+          // For password-protected transfers, don't include the password in the URL
+          const link = `${baseUrl}/app/claims?id=${result.transferId}`;
           setTransferLink(link);
+          
+          // Save the transfer ID
+          setTransferId(result.transferId);
+          
+          // Set the gross amount (original amount before fee)
+          setGrossAmount(amount);
+          
+          toast.success("Password-protected transfer link created", {
+            description: `Transfer of ${amount} ${selectedToken.symbol} is ready to share`
+          });
+          
+          // Reset approval state for next transfer
+          setIsApproved(false);
+          
+          return true;
         }
       } else {
         // If no password protection, use createLinkTransfer
@@ -472,26 +516,22 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
           const baseUrl = window.location.origin;
           const link = `${baseUrl}/app/claims?id=${result.transferId}`;
           setTransferLink(link);
+          
+          // Save the transfer ID
+          setTransferId(result.transferId);
+          
+          // Set the gross amount (original amount before fee)
+          setGrossAmount(amount);
+          
+          toast.success("Transfer link created", {
+            description: `Transfer of ${amount} ${selectedToken.symbol} is ready to share`
+          });
+          
+          // Reset approval state for next transfer
+          setIsApproved(false);
+          
+          return true;
         }
-      }
-
-      if (result?.transferId) {
-        // Save the transfer ID
-        setTransferId(result.transferId);
-
-        // Set the gross amount (original amount before fee)
-        setGrossAmount(amount);
-
-        toast.success("Transfer link created", {
-          description: withPassword
-            ? `Password-protected transfer of ${amount} ${selectedToken.symbol} is ready to share`
-            : `Transfer of ${amount} ${selectedToken.symbol} is ready to share`
-        });
-
-        // Reset approval state for next transfer
-        setIsApproved(false);
-
-        return true;
       }
 
       toast.error("Transfer link failed", {
@@ -523,7 +563,31 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   // Claim a protected transfer
   const claimProtectedTransfer = async (id: string, code: string) => {
     try {
-      return await claimTransfer(id, code);
+      console.log('Attempting to claim transfer with ID:', id, 'and code:', code);
+      
+      // Check if wallet is connected
+      if (!address) {
+        toast.error("No wallet connected");
+        return false;
+      }
+      
+      // Trim any whitespace from the claim code
+      const trimmedCode = code.trim();
+      
+      // Check if the code is valid before attempting to claim
+      if (!trimmedCode) {
+        console.error('Empty claim code provided');
+        toast.error("Invalid claim code", {
+          description: "Please enter a valid claim code"
+        });
+        return false;
+      }
+      
+      // Log the claim code for debugging
+      console.log('Using claim code:', trimmedCode, 'length:', trimmedCode.length);
+      
+      // Attempt to claim the transfer
+      return await claimTransfer(id, trimmedCode);
     } catch (error) {
       console.error('Error claiming transfer:', error);
 
@@ -557,8 +621,37 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   // Claim a protected link transfer
   const claimProtectedLinkTransfer = async (id: string) => {
     try {
-      // For transfers without password, we can use an empty string as the claim code
-      return await claimTransfer(id, '');
+      console.log('Attempting to claim link transfer with ID:', id);
+      
+      // Check if wallet is connected
+      if (!address) {
+        toast.error("No wallet connected");
+        return false;
+      }
+
+      // Check if this transfer requires a password
+      let requiresPassword = false;
+      try {
+        requiresPassword = await isPasswordProtected(id);
+        console.log('Transfer requires password:', requiresPassword);
+      } catch (checkError) {
+        console.error('Error checking if transfer requires password:', checkError);
+        // Continue with the claim attempt anyway
+      }
+
+      // For non-password protected transfers, attempt to claim directly
+      if (!requiresPassword) {
+        console.log('Attempting to claim non-password protected transfer');
+        // Pass an empty string as the claim code - this will skip simulation in the claimTransfer function
+        return await claimTransfer(id, '');
+      } else {
+        // For password-protected transfers, notify the user
+        console.log('Transfer is password-protected, notifying user');
+        toast.error("Password Required", {
+          description: "This transfer is password-protected. Please enter the password to claim it."
+        });
+        return false;
+      }
     } catch (error) {
       console.error('Error claiming link transfer:', error);
 

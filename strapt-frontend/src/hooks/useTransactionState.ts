@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 
 /**
@@ -14,6 +14,10 @@ export function useTransactionState() {
   const [isClaiming, setIsClaiming] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  
+  // Transaction queue management
+  const transactionQueue = useRef<Array<() => Promise<void>>>([]);
+  const isProcessing = useRef(false);
 
   // Write contract hooks from wagmi
   const { writeContract, isPending, data: hash } = useWriteContract();
@@ -21,6 +25,33 @@ export function useTransactionState() {
   // Wait for transaction receipt
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({ hash });
+
+  // Process next transaction in queue
+  const processNextTransaction = useCallback(async () => {
+    if (isProcessing.current || transactionQueue.current.length === 0) {
+      return;
+    }
+
+    isProcessing.current = true;
+    const nextTransaction = transactionQueue.current.shift();
+
+    try {
+      if (nextTransaction) {
+        await nextTransaction();
+      }
+    } catch (error) {
+      console.error('Error processing transaction:', error);
+    } finally {
+      isProcessing.current = false;
+      processNextTransaction();
+    }
+  }, []);
+
+  // Add transaction to queue
+  const queueTransaction = useCallback((transaction: () => Promise<void>) => {
+    transactionQueue.current.push(transaction);
+    processNextTransaction();
+  }, [processNextTransaction]);
 
   // Reset all states
   const resetStates = useCallback(() => {
@@ -30,6 +61,8 @@ export function useTransactionState() {
     setIsCreating(false);
     setIsClaiming(false);
     setIsRefunding(false);
+    transactionQueue.current = [];
+    isProcessing.current = false;
   }, []);
 
   // Shorten ID for display
@@ -65,8 +98,9 @@ export function useTransactionState() {
     // Utility functions
     resetStates,
     shortenId,
+    queueTransaction,
     
     // Computed states
-    isProcessing: isLoading || isPending || isConfirming || isApproving || isCreating || isClaiming || isRefunding,
+    isProcessing: isLoading || isPending || isConfirming || isApproving || isCreating || isClaiming || isRefunding || isProcessing.current,
   };
 }
