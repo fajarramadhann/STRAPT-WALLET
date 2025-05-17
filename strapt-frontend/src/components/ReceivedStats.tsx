@@ -55,7 +55,7 @@ const ReceivedStats = ({ totalReceived, recentActivity }: ReceivedStatsProps) =>
                     <span>{activity.direction === 'in' ? 'Received' : 'Sent'}</span>
                   </div>
                   <div className={activity.direction === 'in' ? 'text-green-500' : 'text-amber-500'}>
-                    {activity.direction === 'in' ? '+' : '-'}{activity.amount.toFixed(2)} SEI
+                    {activity.direction === 'in' ? '+' : '-'}{activity.amount.toFixed(2)} IDRX
                   </div>
                 </div>
               ))}

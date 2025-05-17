@@ -128,7 +128,7 @@ const OptimizedProfile = () => {
   // QR code profile data
   const profileData = {
     address,
-    username: '@trustuser.sei',
+    username: '@vitalik.strapt',
     timestamp: new Date().toISOString(),
   };
 
@@ -148,7 +148,7 @@ const OptimizedProfile = () => {
               <AvatarFallback className="text-lg">TS</AvatarFallback>
             </Avatar>
             <div className={`flex-1 ${isMobile ? 'text-center' : ''}`}>
-              <h2 className="text-lg font-medium">@trustuser.sei</h2>
+              <h2 className="text-lg font-medium">@vitalik.strapt</h2>
               <div className={`flex items-center text-sm text-muted-foreground ${isMobile ? 'justify-center' : ''}`}>
                 <span className="truncate">{truncatedAddress}</span>
                 <button onClick={handleCopyAddress} className="ml-1 p-1" aria-label="Copy address">

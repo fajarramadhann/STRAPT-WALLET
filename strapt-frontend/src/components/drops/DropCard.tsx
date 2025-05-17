@@ -7,6 +7,7 @@ import { Gift, Clock, Users, RefreshCcw, AlertTriangle, Check, Shuffle, Coins, S
 import { formatUnits } from 'viem';
 import { motion } from 'framer-motion';
 import { type DropInfo } from '@/hooks/useOptimizedStraptDrop';
+import { generateDropClaimLink } from '@/utils/qr-code-utils';
 
 interface DropCardProps {
   id: string;
@@ -61,13 +62,13 @@ const canRefund = (drop: DropInfo) => {
   return drop.isActive && isExpired(drop.expiryTime) && drop.remainingAmount > 0n;
 };
 
-const DropCard = memo(({ 
-  id, 
-  info, 
-  tokenSymbol, 
-  tokenDecimals, 
-  onRefund, 
-  onShowQR, 
+const DropCard = memo(({
+  id,
+  info,
+  tokenSymbol,
+  tokenDecimals,
+  onRefund,
+  onShowQR,
   isRefunding,
   index
 }: DropCardProps) => {
@@ -84,9 +85,13 @@ const DropCard = memo(({
     }
   };
 
+  const generateDropLink = () => {
+    // Use the utility function for consistent drop links
+    return generateDropClaimLink(id);
+  };
+
   const handleCopyLink = () => {
-    const baseUrl = window.location.origin;
-    const link = `${baseUrl}/app/strapt-drop/claim?id=${id}`;
+    const link = generateDropLink();
 
     navigator.clipboard.writeText(link)
       .then(() => toast.success('Link copied to clipboard'))
@@ -94,8 +99,7 @@ const DropCard = memo(({
   };
 
   const handleShowQR = () => {
-    const baseUrl = window.location.origin;
-    const link = `${baseUrl}/app/strapt-drop/claim?id=${id}`;
+    const link = generateDropLink();
     onShowQR(link);
   };
 
@@ -196,7 +200,7 @@ const DropCard = memo(({
               >
                 {isRefundingLocal || isRefunding ? (
                   <>
-                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" /> 
+                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
                     Refunding...
                   </>
                 ) : (

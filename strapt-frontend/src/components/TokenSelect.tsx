@@ -1,12 +1,10 @@
 import { CheckIcon, ChevronDown } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList
 } from '@/components/ui/command';
@@ -15,7 +13,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import InfoTooltip from '@/components/InfoTooltip';
 
 // Token color mapping for dynamic styling
 const TOKEN_COLORS = {
@@ -50,9 +47,10 @@ interface TokenSelectProps {
   selectedToken: TokenOption;
   onTokenChange: (token: TokenOption) => void;
   className?: string;
+  isLoading?: boolean;
 }
 
-const TokenSelect = ({ tokens, selectedToken, onTokenChange, className }: TokenSelectProps) => {
+const TokenSelect = ({ tokens, selectedToken, onTokenChange, className, isLoading }: TokenSelectProps) => {
   const [open, setOpen] = useState(false);
 
   // Helper function to get token colors or default colors
@@ -73,57 +71,27 @@ const TokenSelect = ({ tokens, selectedToken, onTokenChange, className }: TokenS
     [selectedToken.symbol, getTokenColors]
   );
 
-  // Debug log for selected token
-  useEffect(() => {
-    console.log('Selected Token:', {
-      symbol: selectedToken.symbol,
-      balance: selectedToken.balance
-    });
-  }, [selectedToken]);
-
-  // Debug log for all tokens
-  useEffect(() => {
-    console.log('All Tokens:', tokens.map(token => ({
-      symbol: token.symbol,
-      balance: token.balance
-    })));
-  }, [tokens]);
-
   return (
     <div className="relative">
-      <div className="absolute right-0 top-0 mt-0.5 mr-10 z-10">
-        <InfoTooltip
-          content={
-            <div>
-              <p className="font-medium mb-1">Select Token</p>
-              <p className="mb-1">Choose which token to use for your transfer.</p>
-              <ul className="list-disc pl-4 text-xs space-y-1">
-                <li>Make sure you have enough tokens in your wallet</li>
-                <li>No fees are charged for any token</li>
-              </ul>
-            </div>
-          }
-          side="right"
-        />
-      </div>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             aria-expanded={open}
             className={cn(
-              "w-full justify-between",
+              "w-full justify-between h-9 text-sm px-3",
               selectedTokenColors.border,
               selectedTokenColors.borderDark,
               selectedTokenColors.text,
               selectedTokenColors.textDark,
               className
             )}
+            disabled={isLoading}
           >
             <div className="flex items-center">
               {selectedToken.icon && (
                 <div className={cn(
-                  "mr-2 h-6 w-6 overflow-hidden rounded-full",
+                  "mr-2 h-5 w-5 overflow-hidden rounded-full",
                   selectedTokenColors.bg,
                   selectedTokenColors.bgDark
                 )}>
@@ -132,13 +100,11 @@ const TokenSelect = ({ tokens, selectedToken, onTokenChange, className }: TokenS
               )}
               <span className="font-medium">{selectedToken.symbol}</span>
             </div>
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0">
+        <PopoverContent className="w-[170px] p-0">
           <Command>
-            <CommandInput placeholder="Search token..." />
-            <CommandEmpty>No token found.</CommandEmpty>
             <CommandList>
               <CommandGroup>
                 {tokens.map((token) => (
@@ -149,14 +115,14 @@ const TokenSelect = ({ tokens, selectedToken, onTokenChange, className }: TokenS
                       setOpen(false);
                     }}
                     className={cn(
-                      "flex items-center",
+                      "flex items-center py-2",
                       getTokenColors(token.symbol).bg,
                       getTokenColors(token.symbol).bgDark
                     )}
                   >
                     {token.icon && (
                       <div className={cn(
-                        "mr-2 h-5 w-5 overflow-hidden rounded-full",
+                        "mr-2 h-4 w-4 overflow-hidden rounded-full",
                         "bg-white",
                         token.symbol === 'USDC' && "dark:bg-blue-800",
                         token.symbol === 'IDRX' && "dark:bg-purple-800"
@@ -165,13 +131,13 @@ const TokenSelect = ({ tokens, selectedToken, onTokenChange, className }: TokenS
                       </div>
                     )}
                     <span className={cn(
-                      "flex-1 font-medium",
+                      "flex-1 font-medium text-sm",
                       getTokenColors(token.symbol).text,
                       getTokenColors(token.symbol).textDark
                     )}>{token.symbol}</span>
                     {token.symbol === selectedToken.symbol && (
                       <CheckIcon className={cn(
-                        "ml-2 h-4 w-4",
+                        "ml-1 h-4 w-4",
                         getTokenColors(token.symbol).text,
                         getTokenColors(token.symbol).textDark
                       )} />

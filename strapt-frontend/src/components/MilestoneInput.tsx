@@ -50,9 +50,9 @@ const MilestoneInput = ({ milestones, onChange, duration }: MilestoneInputProps)
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Label className="text-base">Stream Milestones (Optional)</Label>
+    <div className="space-y-1.5">
+      <div className="flex items-center">
+        <Label className="text-xs">Milestones</Label>
         <InfoTooltip
           content={
             <div>
@@ -66,20 +66,19 @@ const MilestoneInput = ({ milestones, onChange, duration }: MilestoneInputProps)
               </ul>
             </div>
           }
+          iconSize={12}
+          className="ml-1"
         />
       </div>
 
-      <div className="p-3 bg-secondary/30 rounded-lg space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Add milestones to track important points in your payment stream. You can release milestone payments manually when specific work is completed.
-        </p>
-
-        <div className="flex space-x-2">
+      <div className="p-2 bg-secondary/30 rounded-lg space-y-2">
+        <div className="flex gap-2">
           <div className="flex-1">
             <Input
               placeholder="Milestone description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className="h-8 text-xs"
             />
           </div>
           <div className="w-20 relative">
@@ -91,14 +90,10 @@ const MilestoneInput = ({ milestones, onChange, duration }: MilestoneInputProps)
               onChange={(e) => setPercentage(Number.parseInt(e.target.value, 10) || 25)}
               aria-label="Milestone percentage"
               title="Percentage of total stream amount for this milestone"
+              className="h-8 text-xs pr-6"
             />
             <div className="absolute right-0 top-0 bottom-0 flex items-center pr-2">
-              <div className="relative group">
-                <span className="text-sm text-muted-foreground">%</span>
-                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
-                  Percentage of the total stream amount that will be released at this milestone
-                </div>
-              </div>
+              <span className="text-xs text-muted-foreground">%</span>
             </div>
           </div>
           <Button
@@ -106,28 +101,29 @@ const MilestoneInput = ({ milestones, onChange, duration }: MilestoneInputProps)
             size="sm"
             onClick={handleAddMilestone}
             disabled={!description.trim()}
+            className="h-8 w-8 p-0"
           >
             <PlusCircle className="h-4 w-4" />
           </Button>
         </div>
 
         {milestones.length > 0 && (
-          <div className="space-y-2 mt-3">
+          <div className="max-h-[100px] overflow-y-auto pr-1">
             {milestones.map((milestone) => (
               <div
                 key={milestone.id}
-                className="flex items-center justify-between bg-background p-2 rounded"
+                className="flex items-center justify-between bg-background p-1.5 rounded text-xs mb-1.5"
               >
-                <div className="flex items-center">
-                  <MilestoneIcon className="h-4 w-4 mr-2 text-primary" />
-                  <span className="text-sm">{milestone.description}</span>
+                <div className="flex items-center overflow-hidden max-w-[70%]">
+                  <MilestoneIcon className="h-3.5 w-3.5 mr-1.5 flex-shrink-0 text-primary" />
+                  <span className="truncate">{milestone.description}</span>
                 </div>
-                <div className="flex items-center">
-                  <div className="flex items-center text-sm text-muted-foreground mr-2">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    {getTimeForPercentage(milestone.percentage)}
+                <div className="flex items-center flex-shrink-0">
+                  <div className="flex items-center text-muted-foreground mr-1.5">
+                    <Calendar className="h-3 w-3 mr-1 hidden sm:inline" />
+                    <span className="hidden sm:inline">{getTimeForPercentage(milestone.percentage)}</span>
                     <span className="mx-1">•</span>
-                    {milestone.percentage}%
+                    <span>{milestone.percentage}%</span>
                   </div>
                   <Button
                     variant="ghost"
@@ -135,7 +131,7 @@ const MilestoneInput = ({ milestones, onChange, duration }: MilestoneInputProps)
                     className="h-6 w-6 p-0"
                     onClick={() => handleRemoveMilestone(milestone.id)}
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>

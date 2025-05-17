@@ -1,212 +1,14 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Scan, X } from 'lucide-react';
+import { Scan } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-
-// Helper function to process QR code data - exported for reuse
-export const processQRCodeData = (
-  decodedText: string,
-  navigate: (to: string) => void,
-  toast: {
-    (props: { title: string; description?: string; variant?: "default" | "destructive" }): void;
-    success: (message: string) => void;
-    error: (message: string) => void;
-    info: (message: string) => void;
-  }
-): boolean => {
-  console.log("Processing QR code:", decodedText);
-
-  try {
-    // Check if it's a URL
-    if (decodedText.startsWith('http')) {
-      const url = new URL(decodedText);
-
-      // Check if it's a STRAPT Drop claim URL
-      if (url.pathname.includes('/strapt-drop/claim')) {
-        const params = new URLSearchParams(url.search);
-        const dropId = params.get('id');
-
-        if (dropId?.startsWith('0x')) {
-          navigate(`/app/strapt-drop/claim?id=${dropId}`);
-          toast({
-            title: "STRAPT Drop Detected",
-            description: "Opening the STRAPT Drop claim page",
-          });
-          return true;
-        }
-      }
-
-      // Check if it's a claim URL
-      if (url.pathname.includes('/claim/')) {
-        const claimId = url.pathname.split('/claim/')[1];
-        const params = new URLSearchParams(url.search);
-        const code = params.get('code');
-
-        if (claimId) {
-          // If we have a code parameter, include it in the URL
-          if (code) {
-            navigate(`/app/claims?id=${claimId}&code=${code}`);
-          } else {
-            navigate(`/app/claims?id=${claimId}`);
-          }
-
-          toast({
-            title: "QR Code Scanned Successfully",
-            description: "Opening the claim page",
-          });
-          return true;
-        }
-      }
-
-      // Check if URL contains transfer ID in query params
-      const params = new URLSearchParams(url.search);
-      const transferId = params.get('id') || params.get('transferId');
-      const claimCode = params.get('code') || params.get('claimCode');
-
-      if (transferId?.startsWith('0x')) {
-        // Check if this is a STRAPT Drop ID (it will be 66 characters long)
-        if (transferId.length === 66) {
-          navigate(`/app/strapt-drop/claim?id=${transferId}`);
-          toast({
-            title: "STRAPT Drop Detected",
-            description: "Opening the STRAPT Drop claim page",
-          });
-          return true;
-        }
-
-        // Otherwise, treat as a regular transfer
-        if (claimCode) {
-          navigate(`/app/claims?id=${transferId}&code=${claimCode}`);
-        } else {
-          navigate(`/app/claims?id=${transferId}`);
-        }
-
-        toast({
-          title: "Transfer ID Detected in URL",
-          description: "Opening the claim page",
-        });
-        return true;
-      }
-
-      // If it's just a website URL without transfer info
-      toast({
-        title: "Not a Payment Code",
-        description: "This QR code doesn't contain payment information",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Check if it's a JSON string containing transfer data
-    if (decodedText.startsWith('{') && decodedText.endsWith('}')) {
-      try {
-        const jsonData = JSON.parse(decodedText);
-
-        // Check if JSON contains transfer ID
-        if (jsonData.id || jsonData.transferId) {
-          const transferId = jsonData.id || jsonData.transferId;
-          const claimCode = jsonData.code || jsonData.claimCode || jsonData.password;
-
-          if (transferId.startsWith('0x')) {
-            if (claimCode) {
-              navigate(`/app/claims?id=${transferId}&code=${claimCode}`);
-            } else {
-              navigate(`/app/claims?id=${transferId}`);
-            }
-
-            toast({
-              title: "Transfer Data Detected",
-              description: "Opening the claim page",
-            });
-            return true;
-          }
-        }
-
-        // Check if JSON contains wallet address
-        if (jsonData.address?.startsWith('0x')) {
-          navigate(`/app/transfer?to=${jsonData.address}`);
-          toast({
-            title: "Wallet Address Detected",
-            description: "Opening the transfer page",
-          });
-          return true;
-        }
-      } catch (e) {
-        console.error("Error parsing JSON from QR code:", e);
-      }
-    }
-
-    // Check if it's an Ethereum address
-    if (decodedText.startsWith('0x') && decodedText.length === 42) {
-      // It's an Ethereum address, navigate to transfer page with pre-filled recipient
-      navigate(`/app/transfer?to=${decodedText}`);
-      toast({
-        title: "Wallet Address Detected",
-        description: "Opening the transfer page",
-      });
-      return true;
-    }
-
-    // Check if it's a transfer ID or STRAPT Drop ID (32 bytes hex)
-    if (decodedText.startsWith('0x') && decodedText.length === 66) {
-      // Try to determine if it's a STRAPT Drop ID or a transfer ID
-      // For now, we'll just check the URL path to determine where to navigate
-      const currentPath = window.location.pathname;
-
-      if (currentPath.includes('/strapt-drop')) {
-        // If we're in the STRAPT Drop section, assume it's a drop ID
-        navigate(`/app/strapt-drop/claim?id=${decodedText}`);
-        toast({
-          title: "STRAPT Drop ID Detected",
-          description: "Opening the STRAPT Drop claim page",
-        });
-      } else {
-        // Otherwise, assume it's a transfer ID
-        navigate(`/app/claims?id=${decodedText}`);
-        toast({
-          title: "Transfer ID Detected",
-          description: "Opening the claim page",
-        });
-      }
-      return true;
-    }
-
-    // Check if it contains a transfer ID anywhere in the text
-    const hexRegex = /0x[a-fA-F0-9]{64}/;
-    const match = decodedText.match(hexRegex);
-    if (match) {
-      const transferId = match[0];
-      navigate(`/app/claims?id=${transferId}`);
-      toast({
-        title: "Transfer ID Found",
-        description: "Opening the claim page",
-      });
-      return true;
-    }
-
-    // If we get here, the format wasn't recognized
-    toast({
-      title: "Unknown QR Code Format",
-      description: "This QR code format isn't recognized",
-      variant: "destructive",
-    });
-    return false;
-  } catch (e) {
-    console.error("Error processing QR code:", e);
-    toast({
-      title: "Invalid QR Code",
-      description: "This QR code format isn't recognized",
-      variant: "destructive",
-    });
-    return false;
-  }
-};
+import { processQRCodeData } from '@/utils/qr-code-utils';
 
 interface QRCodeScannerProps {
   onScan?: (decodedText: string) => void;
@@ -238,23 +40,20 @@ const QRCodeScanner = ({
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  // Sync with external open state if provided
-  useEffect(() => {
-    if (open !== undefined) {
-      setScannerOpen(open);
-      if (open && !isScanning) {
-        setTimeout(() => startScanner(), 500);
-      } else if (!open && isScanning) {
-        stopScanner();
-      }
-    }
-  }, [open, isScanning]);
-
   const html5QrCode = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'html5-qrcode-scanner';
 
-  const startScanner = async () => {
+  // Define stopScanner with useCallback to avoid recreation on each render
+  const stopScanner = useCallback(() => {
+    if (html5QrCode.current?.isScanning) {
+      html5QrCode.current.stop()
+        .catch(err => console.error("Error stopping scanner:", err))
+        .finally(() => setIsScanning(false));
+    }
+  }, []);
+
+  // Define startScanner with useCallback to avoid recreation on each render
+  const startScanner = useCallback(async () => {
     if (!html5QrCode.current) {
       html5QrCode.current = new Html5Qrcode(scannerContainerId);
     }
@@ -289,10 +88,16 @@ const QRCodeScanner = ({
         }
       };
 
-      const config = { fps: 10, qrbox: isMobile ? 250 : 300 };
+      // Enhanced configuration for better QR code scanning
+      const config = {
+        fps: 15,                                // Higher FPS for faster scanning
+        qrbox: isMobile ? { width: 250, height: 250 } : { width: 300, height: 300 },
+        aspectRatio: 1.0,                       // Square aspect ratio for better scanning
+        disableFlip: false                      // Allow flipping for better detection
+      };
 
       await html5QrCode.current.start(
-        { facingMode: "environment" },
+        { facingMode: "environment" },          // Use back camera by default
         config,
         qrCodeSuccessCallback,
         () => {} // Ignore failures to avoid console noise
@@ -306,17 +111,21 @@ const QRCodeScanner = ({
         variant: "destructive",
       });
     }
-  };
+  }, [isMobile, navigate, onOpenChange, onScan, onScanSuccess, stopScanner, toast]);
 
-  const stopScanner = () => {
-    if (html5QrCode.current?.isScanning) {
-      html5QrCode.current.stop()
-        .catch(err => console.error("Error stopping scanner:", err))
-        .finally(() => setIsScanning(false));
+  // Sync with external open state if provided
+  useEffect(() => {
+    if (open !== undefined) {
+      setScannerOpen(open);
+      if (open && !isScanning) {
+        setTimeout(() => startScanner(), 500);
+      } else if (!open && isScanning) {
+        stopScanner();
+      }
     }
-  };
+  }, [open, isScanning, startScanner, stopScanner]);
 
-  const handleOpenChange = (newOpenState: boolean) => {
+  const handleOpenChange = useCallback((newOpenState: boolean) => {
     setScannerOpen(newOpenState);
     if (!newOpenState && isScanning) {
       stopScanner();
@@ -329,7 +138,7 @@ const QRCodeScanner = ({
     if (onOpenChange) {
       onOpenChange(newOpenState);
     }
-  };
+  }, [isScanning, onOpenChange, startScanner, stopScanner]);
 
   // Cleanup scanner on unmount
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Gift, AlertTriangle, Check, Share2, QrCode, Shuffle, Coins, Clock } fro
 import InfoTooltip from '@/components/InfoTooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import QRCode from '@/components/QRCode';
+import { generateDropClaimLink } from '@/utils/qr-code-utils';
 import TokenSelect from '@/components/TokenSelect';
 
 const StraptDrop = () => {
@@ -55,11 +56,12 @@ const StraptDrop = () => {
     };
   }, []);
 
+  // Use the utility function for consistent drop links
+
   // Show success dialog when drop is created
   useEffect(() => {
     if (currentDropId) {
-      const baseUrl = window.location.origin;
-      const link = `${baseUrl}/app/strapt-drop/claim?id=${currentDropId}`;
+      const link = generateDropClaimLink(currentDropId);
       setDropLink(link);
       setShowSuccess(true);
     }
@@ -105,10 +107,12 @@ const StraptDrop = () => {
         "" // Empty message
       );
 
-      // If result is null, it means the user rejected the transaction
-      // In this case, we don't want to show an error
+      // If result is null, it means either:
+      // 1. The user rejected the transaction, or
+      // 2. The approval succeeded but the drop creation failed
+      // In either case, the hook already showed appropriate messages
       if (result === null) {
-        console.log('User rejected transaction, not showing error');
+        console.log('Transaction was not completed, not showing additional messages');
         return;
       }
 
@@ -131,7 +135,21 @@ const StraptDrop = () => {
             error.message?.includes('cancelled') ||
             error.message?.includes('user rejected'))) {
         console.error('Error creating drop:', error);
-        toast.error('Failed to create STRAPT Drop. Please try again.');
+
+        // Check if the error message contains information about a specific part of the process
+        if (error.message?.includes('insufficient allowance')) {
+          toast.error('Insufficient token allowance', {
+            description: 'The approval transaction was successful, but the blockchain needs more time to process it. Please wait a moment and try again.'
+          });
+        } else if (error.message?.includes('approve') || error.message?.includes('allowance')) {
+          toast.error('Failed to approve token transfer', {
+            description: 'There was an issue with the token approval step. Please try again.'
+          });
+        } else {
+          toast.error('Failed to create STRAPT Drop', {
+            description: 'There was an issue creating your drop. Please try again.'
+          });
+        }
       } else {
         console.log('User rejected transaction, not showing error');
       }

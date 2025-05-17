@@ -190,14 +190,15 @@ const AutoRefreshStreams = () => {
   };
 
   // Handle stream status updates
-  const handleStreamStatusUpdate = useCallback((streamId: string) => {
+  const handleStreamStatusUpdate = useCallback(async (streamId: string): Promise<void> => {
     // Refresh all data
     refreshAllData();
+    return Promise.resolve();
   }, [refreshAllData]);
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-semibold">Payment Streams</h2>
           <InfoTooltip
@@ -215,23 +216,25 @@ const AutoRefreshStreams = () => {
             }
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full sm:w-auto gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={refetchStreams}
             disabled={isLoadingStreams}
+            className="flex-1 sm:flex-none"
           >
             <RefreshCw className={`h-4 w-4 mr-1 ${isLoadingStreams ? 'animate-spin' : ''}`} />
-            Refresh
+            <span>Refresh</span>
           </Button>
           <Button
             variant="default"
             size="sm"
             onClick={() => setShowCreate(true)}
+            className="flex-1 sm:flex-none"
           >
             <PlusCircle className="h-4 w-4 mr-1" />
-            Create Stream
+            <span>Create Stream</span>
           </Button>
         </div>
       </div>
@@ -271,7 +274,8 @@ const AutoRefreshStreams = () => {
               </p>
               <Button
                 variant="outline"
-                className="mt-4"
+                size="sm"
+                className="mt-4 mx-auto px-4"
                 onClick={() => setShowCreate(true)}
               >
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -284,22 +288,30 @@ const AutoRefreshStreams = () => {
                 <EnhancedStreamCard
                   key={stream.id}
                   stream={stream}
-                  onPause={() => {
-                    pauseStream(stream.id).then(() => refreshAllData());
+                  onPause={async () => {
+                    await pauseStream(stream.id);
+                    refreshAllData();
+                    return Promise.resolve();
                   }}
-                  onResume={() => {
-                    resumeStream(stream.id).then(() => refreshAllData());
+                  onResume={async () => {
+                    await resumeStream(stream.id);
+                    refreshAllData();
+                    return Promise.resolve();
                   }}
-                  onCancel={() => {
-                    cancelStream(stream.id).then(() => refreshAllData());
+                  onCancel={async () => {
+                    await cancelStream(stream.id);
+                    refreshAllData();
+                    return Promise.resolve();
                   }}
                   onReleaseMilestone={(stream, milestone) => {
                     setSelectedStream(stream);
                     setSelectedMilestone(milestone);
                     setShowReleaseDialog(true);
                   }}
-                  onWithdraw={() => {
-                    withdrawFromStream(stream.id).then(() => refreshAllData());
+                  onWithdraw={async () => {
+                    await withdrawFromStream(stream.id);
+                    refreshAllData();
+                    return Promise.resolve();
                   }}
                   onStreamComplete={handleStreamStatusUpdate}
                 />
@@ -329,8 +341,10 @@ const AutoRefreshStreams = () => {
                 <EnhancedStreamCard
                   key={stream.id}
                   stream={stream}
-                  onWithdraw={() => {
-                    withdrawFromStream(stream.id).then(() => refreshAllData());
+                  onWithdraw={async () => {
+                    await withdrawFromStream(stream.id);
+                    refreshAllData();
+                    return Promise.resolve();
                   }}
                   onStreamComplete={handleStreamStatusUpdate}
                 />
@@ -341,15 +355,17 @@ const AutoRefreshStreams = () => {
       </Tabs>
 
       {/* Create Stream Dialog */}
-      {showCreate && (
-        <StreamForm
-          onCancel={() => setShowCreate(false)}
-          onSubmit={handleCreateStream}
-          isCreatingStream={isCreatingStream}
-          tokens={tokens}
-          isLoadingTokens={isLoadingTokens}
-        />
-      )}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-[95%] w-[95%] p-3 mx-auto rounded-xl md:max-w-lg md:p-4">
+          <StreamForm
+            onCancel={() => setShowCreate(false)}
+            onSubmit={handleCreateStream}
+            isCreatingStream={isCreatingStream}
+            tokens={tokens}
+            isLoadingTokens={isLoadingTokens}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Release Milestone Dialog */}
       {showReleaseDialog && selectedStream && selectedMilestone && (
@@ -371,7 +387,7 @@ const AutoRefreshStreams = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowReleaseDialog(false)}>Cancel</Button>
               <Button onClick={() => {
-                releaseMilestone(selectedStream.id, parseInt(selectedMilestone.id.split('-')[2])).then(() => {
+                releaseMilestone(selectedStream.id, Number.parseInt(selectedMilestone.id.split('-')[2], 10)).then(() => {
                   setShowReleaseDialog(false);
                   refreshAllData();
                 });

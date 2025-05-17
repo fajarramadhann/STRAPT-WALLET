@@ -144,36 +144,31 @@ const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens, isLoadingTok
   }, [recipient, amount, duration, durationUnit, milestones, selectedToken, toast, onSubmit]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center">
-        <Button variant="ghost" size="sm" onClick={onCancel} className="mr-4 p-0 h-auto">
-          <ArrowRight className="h-5 w-5 rotate-180" />
+    <div className="space-y-3">
+      <div className="flex items-center mb-1">
+        <Button variant="ghost" size="sm" onClick={onCancel} className="mr-2 p-0 h-auto">
+          <ArrowRight className="h-4 w-4 rotate-180" />
         </Button>
-        <h2 className="text-xl font-semibold">Create Stream</h2>
+        <h2 className="text-base font-semibold">Create Stream</h2>
       </div>
 
       <form onSubmit={handleCreateStream}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <BarChart2 className="h-5 w-5 mr-2 text-primary" />
-              Stream Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="recipient">Recipient</Label>
-              <Input
-                id="recipient"
-                placeholder="wallet address 0x..."
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                required
-              />
-            </div>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="recipient" className="text-xs">Recipient</Label>
+            <Input
+              id="recipient"
+              placeholder="wallet address 0x..."
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              required
+              className="h-9 text-sm"
+            />
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="token">Token</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="token" className="text-xs">Token</Label>
               <TokenSelect
                 tokens={tokens}
                 selectedToken={selectedToken}
@@ -182,8 +177,8 @@ const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens, isLoadingTok
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="amount">Total Amount</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="amount" className="text-xs">Total Amount</Label>
               <div className="relative">
                 <Input
                   id="amount"
@@ -194,7 +189,7 @@ const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens, isLoadingTok
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
-                  className={`pr-16 ${
+                  className={`pr-12 h-9 text-sm ${
                     amount && (
                       Number.isNaN(Number(amount)) ||
                       Number(amount) <= 0 ||
@@ -204,7 +199,7 @@ const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens, isLoadingTok
                 />
                 <button
                   type="button"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-0.5 text-xs rounded bg-secondary text-secondary-foreground"
                   onClick={() => {
                     const balance = selectedToken.balance || 0;
                     setAmount(balance.toString());
@@ -213,77 +208,71 @@ const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens, isLoadingTok
                   MAX
                 </button>
               </div>
-              {amount && Number.isNaN(Number(amount)) && (
+              {amount && (Number.isNaN(Number(amount)) || Number(amount) <= 0 || (selectedToken.balance && Number(amount) > selectedToken.balance)) && (
                 <p className="text-xs text-red-500">
-                  Please enter a valid number
+                  {Number.isNaN(Number(amount))
+                    ? "Invalid number"
+                    : Number(amount) <= 0
+                      ? "Amount > 0"
+                      : "Insufficient balance"}
                 </p>
               )}
-              {amount && !Number.isNaN(Number(amount)) && Number(amount) <= 0 && (
-                <p className="text-xs text-red-500">
-                  Amount must be greater than 0
+              {!amount || (!Number.isNaN(Number(amount)) && Number(amount) > 0 && (!selectedToken.balance || Number(amount) <= selectedToken.balance)) && (
+                <p className="text-xs text-muted-foreground">
+                  Available: {selectedToken.balance?.toFixed(2) || 0} {selectedToken.symbol}
                 </p>
               )}
-              {amount && !Number.isNaN(Number(amount)) && selectedToken.balance && Number(amount) > selectedToken.balance && (
-                <p className="text-xs text-red-500">
-                  Insufficient balance
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Available: {selectedToken.balance?.toFixed(2) || 0} {selectedToken.symbol}
-              </p>
             </div>
+          </div>
 
-            <DurationSelect
-              value={duration}
-              unit={durationUnit}
-              onChange={handleDurationChange}
-              label="Duration"
-            />
+          <DurationSelect
+            value={duration}
+            unit={durationUnit}
+            onChange={handleDurationChange}
+            label="Duration"
+            className="space-y-1.5"
+          />
 
-            {amount && duration && (
-              <div className="p-3 bg-secondary/50 rounded-lg">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Rate:</span>
-                  <span>
-                    {calculateStreamRate()}
-                  </span>
-                </div>
+          {amount && duration && (
+            <div className="p-2 bg-secondary/50 rounded-lg">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Rate:</span>
+                <span>{calculateStreamRate()}</span>
               </div>
-            )}
+            </div>
+          )}
 
-            {duration > 0 && (
-              <MilestoneInput
-                milestones={milestones}
-                onChange={setMilestones}
-                duration={getDurationInMinutes()}
-              />
+          {duration > 0 && (
+            <MilestoneInput
+              milestones={milestones}
+              onChange={setMilestones}
+              duration={getDurationInMinutes()}
+            />
+          )}
+
+          <Button
+            type="submit"
+            className="w-full h-9 mt-1"
+            disabled={
+              isCreatingStream ||
+              !recipient ||
+              !amount ||
+              Number.isNaN(Number(amount)) ||
+              Number(amount) <= 0 ||
+              (selectedToken.balance && Number(amount) > selectedToken.balance)
+            }
+          >
+            {isCreatingStream ? (
+              <>
+                <Loading size="sm" className="mr-2" /> Creating Stream...
+              </>
+            ) : (
+              <>
+                Start Stream <Play className="ml-2 h-4 w-4" />
+              </>
             )}
-          </CardContent>
-          <CardFooter>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={
-                isCreatingStream ||
-                !recipient ||
-                !amount ||
-                Number.isNaN(Number(amount)) ||
-                Number(amount) <= 0 ||
-                (selectedToken.balance && Number(amount) > selectedToken.balance)
-              }
-            >
-              {isCreatingStream ? (
-                <>
-                  <Loading size="sm" className="mr-2" /> Creating Stream...
-                </>
-              ) : (
-                <>
-                  Start Stream <Play className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
+          </Button>
+        </div>
       </form>
     </div>
   );

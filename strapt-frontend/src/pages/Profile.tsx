@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Moon, Sun, ChevronRight, LogOut, Shield, BarChart2, Users, Info, FileText, QrCode, UserPlus, Clock, CalendarClock, Scan } from 'lucide-react';
+import { Copy, Moon, Sun, ChevronRight, LogOut, Shield, BarChart2, Users, Info, FileText, QrCode, UserPlus, Clock, CalendarClock, Scan, PlusCircle, Play } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
@@ -17,17 +17,26 @@ import ProfileActivityTimeline from '@/components/profile/ProfileActivityTimelin
 import QuickContacts from '@/components/profile/QuickContacts';
 import DecentralizedIdentity from '@/components/profile/DecentralizedIdentity';
 import ScheduledTransfers from '@/components/profile/ScheduledTransfers';
+import StreamForm from '@/components/streams/StreamForm';
+import { useTokenBalances } from '@/hooks/use-token-balances';
+import { usePaymentStream } from '@/hooks/use-payment-stream';
+import { useDataContext } from '@/providers/DataProvider';
 
 const Profile = () => {
   const [isDarkMode, setIsDarkMode] = useState(
     document.documentElement.classList.contains('dark')
   );
   const [showQR, setShowQR] = useState(false);
+  const [showCreateStream, setShowCreateStream] = useState(false);
+  const [isCreatingStream, setIsCreatingStream] = useState(false);
   const { toast } = useToast();
   const { address, connector } = useAccount();
   const { disconnect } = useDisconnect();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { tokens, isLoading: isLoadingTokens } = useTokenBalances();
+  const { createStream } = usePaymentStream();
+  const { refreshAllData } = useDataContext();
 
   const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
 
@@ -50,6 +59,47 @@ const Profile = () => {
     navigate('/');
   };
 
+  const handleCreateStream = async (data: {
+    recipient: string;
+    tokenType: 'USDC' | 'IDRX';
+    amount: string;
+    durationInSeconds: number;
+    milestonePercentages: number[];
+    milestoneDescriptions: string[];
+  }) => {
+    try {
+      setIsCreatingStream(true);
+      await createStream(
+        data.recipient,
+        data.tokenType,
+        data.amount,
+        data.durationInSeconds,
+        data.milestonePercentages,
+        data.milestoneDescriptions
+      );
+
+      toast({
+        title: "Stream Created",
+        description: `Successfully started streaming ${data.amount} ${data.tokenType} to ${data.recipient}`,
+      });
+
+      // Close the create dialog
+      setShowCreateStream(false);
+
+      // Refresh all data
+      refreshAllData();
+    } catch (error) {
+      console.error('Error creating stream:', error);
+      toast({
+        title: "Error Creating Stream",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingStream(false);
+    }
+  };
+
   const toggleTheme = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
@@ -70,7 +120,7 @@ const Profile = () => {
   // QR code profile data
   const profileData = {
     address,
-    username: '@trustuser.sei',
+    username: '@xfajarr.strapt',
     timestamp: new Date().toISOString(),
   };
 
@@ -78,26 +128,37 @@ const Profile = () => {
 
   const menuItems = [
     {
+      id: 'transaction-history',
       title: 'Transaction History',
       icon: FileText,
       onClick: () => console.log('Transaction History clicked'),
     },
     {
+      id: 'protected-transfers',
       title: 'Protected Transfers',
       icon: Shield,
       onClick: () => console.log('Protected Transfers clicked'),
     },
     {
-      title: 'Streaming Payments',
+      id: 'streaming-payments',
+      title: 'Payment Streams',
       icon: BarChart2,
-      onClick: () => console.log('Streaming Payments clicked'),
+      onClick: () => navigate('/app/streams'),
     },
     {
+      id: 'create-stream',
+      title: 'Create Payment Stream',
+      icon: PlusCircle,
+      onClick: () => setShowCreateStream(true),
+    },
+    {
+      id: 'group-pools',
       title: 'Group Pools',
       icon: Users,
       onClick: () => console.log('Group Pools clicked'),
     },
     {
+      id: 'about',
       title: 'About STRAPT',
       icon: Info,
       onClick: () => console.log('About clicked'),
@@ -118,12 +179,12 @@ const Profile = () => {
               <AvatarFallback className="text-lg">TS</AvatarFallback>
             </Avatar>
             <div className={`flex-1 ${isMobile ? 'text-center' : ''}`}>
-              <h2 className="text-lg font-medium">@trustuser.sei</h2>
+              <h2 className="text-lg font-medium">@vitalik.strapt</h2>
               <div className={`flex items-center text-sm text-muted-foreground ${isMobile ? 'justify-center' : ''}`}>
                 <span className="truncate">{truncatedAddress}</span>
-                <button onClick={handleCopyAddress} className="ml-1 p-1" aria-label="Copy address">
+                <Button type="button" variant="ghost" size="icon" onClick={handleCopyAddress} className="ml-1 p-1 h-auto" aria-label="Copy address">
                   <Copy className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -147,7 +208,7 @@ const Profile = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-secondary/50 rounded-lg p-3 text-center">
               <p className="text-sm text-muted-foreground">Balance</p>
-              <p className="font-semibold">1,245.78 SEI</p>
+              <p className="font-semibold">100.000 IDRX</p>
             </div>
             <div className="bg-secondary/50 rounded-lg p-3 text-center">
               <p className="text-sm text-muted-foreground">Protected</p>
@@ -227,7 +288,7 @@ const Profile = () => {
       <Card>
         <CardContent className="p-0">
           {menuItems.map((item, index) => (
-            <div key={index}>
+            <div key={item.id}>
               <Button variant="ghost" className="w-full justify-start p-3 h-auto" onClick={item.onClick}>
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-3">
@@ -267,6 +328,19 @@ const Profile = () => {
               <Copy className="h-4 w-4 mr-1" /> Copy Address
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Stream Dialog */}
+      <Dialog open={showCreateStream} onOpenChange={setShowCreateStream}>
+        <DialogContent className={isMobile ? "sm:max-w-[95%] w-[95%] p-3 mx-auto rounded-xl" : "max-w-lg p-4"}>
+          <StreamForm
+            onCancel={() => setShowCreateStream(false)}
+            onSubmit={handleCreateStream}
+            isCreatingStream={isCreatingStream}
+            tokens={tokens}
+            isLoadingTokens={isLoadingTokens}
+          />
         </DialogContent>
       </Dialog>
     </div>

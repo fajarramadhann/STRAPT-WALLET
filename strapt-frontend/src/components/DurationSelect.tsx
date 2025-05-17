@@ -72,8 +72,8 @@ const DurationSelect = ({
   return (
     <div className={className}>
       {label && (
-        <div className="flex items-center gap-2 mb-1">
-          <Label htmlFor={id}>{label}</Label>
+        <div className="flex items-center">
+          <Label htmlFor={id} className="text-xs">{label}</Label>
           <InfoTooltip
             content={
               <div>
@@ -86,29 +86,30 @@ const DurationSelect = ({
                 </ul>
               </div>
             }
-            iconSize={14}
+            iconSize={12}
+            className="ml-1"
           />
         </div>
       )}
-      <div className="flex space-x-2 mt-1.5">
+      <div className="flex space-x-2">
         <Input
           id={id}
           type="number"
           min="1"
           value={value}
           onChange={handleValueChange}
-          className="flex-1"
-          placeholder="Enter duration"
+          className="flex-1 h-9 text-sm"
+          placeholder="Duration"
         />
         <Select value={unit} onValueChange={(val) => handleUnitChange(val as DurationUnit)}>
-          <SelectTrigger className="w-[120px]">
+          <SelectTrigger className="w-[90px] h-9 text-sm">
             <SelectValue placeholder="Unit" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="seconds">Seconds</SelectItem>
-            <SelectItem value="minutes">Minutes</SelectItem>
-            <SelectItem value="hours">Hours</SelectItem>
-            <SelectItem value="days">Days</SelectItem>
+            <SelectItem value="seconds" className="text-sm">Seconds</SelectItem>
+            <SelectItem value="minutes" className="text-sm">Minutes</SelectItem>
+            <SelectItem value="hours" className="text-sm">Hours</SelectItem>
+            <SelectItem value="days" className="text-sm">Days</SelectItem>
           </SelectContent>
         </Select>
       </div>

@@ -12,6 +12,7 @@ import QRCode from '@/components/QRCode';
 import DropCard from '@/components/drops/DropCard';
 import InfoTooltip from '@/components/InfoTooltip';
 import { Card, CardContent } from '@/components/ui/card';
+import { generateDropClaimLink } from '@/utils/qr-code-utils';
 
 const OptimizedMyDrops = () => {
   const navigate = useNavigate();
@@ -72,7 +73,7 @@ const OptimizedMyDrops = () => {
       setRefundingDrops(prev => ({ ...prev, [dropId]: true }));
 
       await refundExpiredDrop(dropId);
-      
+
       toast({
         title: 'Success',
         description: `Successfully refunded drop`
@@ -253,7 +254,7 @@ const OptimizedMyDrops = () => {
           </AnimatePresence>
         </motion.div>
       )}
-      
+
       {/* QR Code Dialog */}
       <Dialog open={showQR} onOpenChange={setShowQR}>
         <DialogContent className="sm:max-w-md">

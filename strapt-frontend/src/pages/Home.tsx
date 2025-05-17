@@ -237,36 +237,36 @@ const Home = () => {
             <ActivityItem
               type="sent"
               title="Sent to Mark"
-              amount="-125 SEI"
+              amount="-125 IDRX"
               date="2 hrs ago"
-              recipient="@mark.sei"
+              recipient="@mark.strapt"
             />
             <ActivityItem
               type="pending"
               title="Protected Transfer"
-              amount="50 SEI"
+              amount="50 IDRX"
               date="5 hrs ago"
-              recipient="@alice.sei"
+              recipient="@alice.strapt"
             />
             <ActivityItem
               type="received"
               title="Received from Stream"
-              amount="+10.5 SEI"
+              amount="+10.5 IDRX"
               date="8 hrs ago"
             />
             <ActivityItem
               type="sent"
               title="Pool Contribution"
-              amount="-75 SEI"
+              amount="-75 IDRX"
               date="1 day ago"
               recipient="Trip Fund"
             />
             <ActivityItem
               type="received"
               title="Received from John"
-              amount="+200 SEI"
+              amount="+200 IDRX"
               date="2 days ago"
-              recipient="@john.sei"
+              recipient="@john.strapt"
             />
           </CardContent>
         </Card>
