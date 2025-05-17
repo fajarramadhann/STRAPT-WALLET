@@ -87,8 +87,8 @@ export function DirectTransfer() {
               Your direct transfer of <span className="font-bold">{transferResult.amount} {transferResult.token}</span> to <span className="font-mono">{transferResult.recipient.slice(0,6)}...{transferResult.recipient.slice(-4)}</span> has been sent.
             </div>
             <div className="bg-zinc-800 rounded-lg p-3 text-sm text-gray-300 text-center">
-              <div>Note: A small fee may be deducted from the transfer amount.</div>
-              <div className="mt-1">Original amount: <span className="font-semibold">{transferResult.originalAmount} {transferResult.token}</span></div>
+              <div>No fees are charged for transfers.</div>
+              <div className="mt-1">Amount: <span className="font-semibold">{transferResult.amount} {transferResult.token}</span></div>
               <div>Recipient will receive: <span className="font-semibold">{transferResult.amount} {transferResult.token}</span></div>
             </div>
             <div className="bg-zinc-800 rounded-lg p-3 text-sm text-gray-300">
@@ -149,8 +149,8 @@ export function DirectTransfer() {
           />
         </div>
 
-        <Button 
-          className="w-full" 
+        <Button
+          className="w-full"
           onClick={handleTransfer}
           disabled={progress.status !== 'idle'}
         >
@@ -161,4 +161,4 @@ export function DirectTransfer() {
       </CardContent>
     </Card>
   );
-} 
+}

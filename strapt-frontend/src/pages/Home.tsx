@@ -120,7 +120,7 @@ const Home = () => {
   return (
     <div className="space-y-6">
       {/* Wallet Balance */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden dark:border-primary/20 border-primary/30">
         <CardHeader className="bg-gradient-to-r from-primary to-accent text-white">
           <CardTitle className="text-xl text-white flex items-center justify-between">
             Your Balance
@@ -166,11 +166,11 @@ const Home = () => {
                         className="w-8 h-8"
                       />
                       <div className="text-2xl font-bold">
-                        {idrxBalance.formatted} {idrxBalance.symbol}
+                        {Number.parseInt(idrxBalance.formatted)} {idrxBalance.symbol}
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      ≈ ${(Number(idrxBalance.formatted) * prices.idrx).toFixed(2)} USD
+                      ≈ ${(Number.parseInt(idrxBalance.formatted) * prices.idrx).toFixed(2)} USD
                     </div>
                   </div>
                 )}
@@ -180,13 +180,13 @@ const Home = () => {
             )}
           </div>
           <div className="flex justify-center gap-4 mt-4">
-          <Button
+          {/* <Button
               variant="secondary"
               className="flex items-center gap-2 rounded-xl"
               onClick={() => navigate("/app/transfer")}
             >
               <ArrowUp className="h-4 w-4" /> Send
-            </Button>
+            </Button> */}
             <Button
               variant="secondary"
               className="flex items-center gap-2 rounded-xl"
@@ -201,7 +201,7 @@ const Home = () => {
       {/* Quick Actions */}
       <div className="space-y-3">
         <h2 className="font-semibold text-lg">Quick Actions</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 text-center">
           <QuickAction
             icon={ArrowUp}
             label="Send"
@@ -210,13 +210,13 @@ const Home = () => {
           />
           <QuickAction
             icon={BarChart2}
-            label="Stream"
+            label="Stream Payment"
             to="/app/streams"
             color="bg-gradient-to-br from-blue-500 to-cyan-400"
           />
           <QuickAction
             icon={UserPlus}
-            label="Register"
+            label="Set your STRAPT ID"
             onClick={() => setShowUsernameReg(true)}
             color="bg-gradient-to-br from-emerald-500 to-green-400"
           />
@@ -231,8 +231,8 @@ const Home = () => {
 
       {/* Recent Activity */}
       <div className="space-y-3">
-        <h2 className="font-semibold text-lg">Recent Activity</h2>
-        <Card>
+        <h2 className="font-semibold text-lg">Recent Activity <span className="ml-3 text-xs text-amber-500 font-normal">(dummy data)</span></h2>
+        <Card className="dark:border-primary/20 border-primary/30">
           <CardContent className="p-0">
             <ActivityItem
               type="sent"

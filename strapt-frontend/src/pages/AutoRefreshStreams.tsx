@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { PlusCircle, BarChart2, Info, ArrowLeft, CheckCircle } from 'lucide-react';
+import { PlusCircle, BarChart2, CheckCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
@@ -11,8 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { usePaymentStream } from '@/hooks/use-payment-stream';
-import { StreamStatus } from '@/hooks/use-payment-stream';
+import { usePaymentStream, StreamStatus } from '@/hooks/use-payment-stream';
 import { useXellarWallet } from '@/hooks/use-xellar-wallet';
 import { Loading } from '@/components/ui/loading';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -20,11 +19,12 @@ import EnhancedStreamCard from '@/components/streams/EnhancedStreamCard';
 import type { UIStream } from '@/components/streams/EnhancedStreamCard';
 import StreamForm from '@/components/streams/StreamForm';
 import type { Milestone } from '@/components/MilestoneInput';
-import type { TokenOption } from '@/components/TokenSelect';
 import { useTokenBalances } from '@/hooks/use-token-balances';
 import { Link } from 'react-router-dom';
+import { useStreamsData } from '@/services/StreamsDataService';
+import { useDataContext } from '@/providers/DataProvider';
 
-const OptimizedStreams = () => {
+const AutoRefreshStreams = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
   const [selectedStream, setSelectedStream] = useState<UIStream | null>(null);
@@ -33,6 +33,7 @@ const OptimizedStreams = () => {
   const { toast } = useToast();
   const { address, isConnected } = useXellarWallet();
   const { tokens, isLoading: isLoadingTokens } = useTokenBalances();
+  const { refreshAllData } = useDataContext();
 
   // Initialize the payment stream hook
   const {
@@ -42,12 +43,11 @@ const OptimizedStreams = () => {
     cancelStream,
     releaseMilestone,
     withdrawFromStream,
-    useUserStreams,
     isStreamFullyClaimed
   } = usePaymentStream();
 
-  // Get user streams
-  const { streams: contractStreams, isLoading: isLoadingStreams, refetch: refetchStreams, updateStreamStatus } = useUserStreams(address);
+  // Get user streams using our new data service
+  const { streams: contractStreams, isLoading: isLoadingStreams, refresh: refetchStreams } = useStreamsData();
 
   // Convert contract streams to UI streams
   const [activeStreams, setActiveStreams] = useState<UIStream[]>([]);
@@ -84,9 +84,25 @@ const OptimizedStreams = () => {
     return `${(ratePerSecond * 86400).toFixed(4)} ${stream.tokenSymbol}/day`;
   }, []);
 
+  // Helper function to convert StreamStatus enum to string
+  const getStatusString = useCallback((status: StreamStatus): 'active' | 'paused' | 'completed' | 'canceled' => {
+    switch (status) {
+      case StreamStatus.Active:
+        return 'active';
+      case StreamStatus.Paused:
+        return 'paused';
+      case StreamStatus.Completed:
+        return 'completed';
+      case StreamStatus.Canceled:
+        return 'canceled';
+      default:
+        return 'active';
+    }
+  }, []);
+
   // Process streams when they change
   useEffect(() => {
-    if (!contractStreams) return;
+    if (!contractStreams || !address) return;
 
     const active: UIStream[] = [];
     const completed: UIStream[] = [];
@@ -129,24 +145,9 @@ const OptimizedStreams = () => {
 
     setActiveStreams(active);
     setCompletedStreams(completed);
-  }, [contractStreams, address, calculateRateFromStream, isStreamFullyClaimed]);
+  }, [contractStreams, address, calculateRateFromStream, isStreamFullyClaimed, getStatusString]);
 
-  // Helper function to convert StreamStatus to string
-  const getStatusString = (status: StreamStatus): 'active' | 'paused' | 'completed' | 'canceled' => {
-    switch (status) {
-      case StreamStatus.Active:
-        return 'active';
-      case StreamStatus.Paused:
-        return 'paused';
-      case StreamStatus.Completed:
-        return 'completed';
-      case StreamStatus.Canceled:
-        return 'canceled';
-      default:
-        return 'active';
-    }
-  };
-
+  // Handle stream creation
   const handleCreateStream = async (data: {
     recipient: string;
     tokenType: 'USDC' | 'IDRX';
@@ -171,35 +172,68 @@ const OptimizedStreams = () => {
         description: `Successfully started streaming ${data.amount} ${data.tokenType} to ${data.recipient}`,
       });
 
+      // Close the create dialog
       setShowCreate(false);
-      refetchStreams();
+
+      // Refresh all data
+      refreshAllData();
     } catch (error) {
       console.error('Error creating stream:', error);
       toast({
         title: "Error Creating Stream",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
     } finally {
       setIsCreatingStream(false);
     }
   };
 
+  // Handle stream status updates
+  const handleStreamStatusUpdate = useCallback((streamId: string) => {
+    // Refresh all data
+    refreshAllData();
+  }, [refreshAllData]);
+
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <Link to="/app">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Payment Streams</h1>
+    <div className="space-y-6 max-w-3xl mx-auto">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">Payment Streams</h2>
+          <InfoTooltip
+            content={
+              <div>
+                <p className="font-medium mb-1">About Payment Streams</p>
+                <p className="mb-1">Payment streams allow you to send tokens gradually over time to recipients.</p>
+                <ul className="list-disc pl-4 text-xs space-y-1">
+                  <li>Tokens are streamed continuously in real-time</li>
+                  <li>Recipients can claim tokens at any time</li>
+                  <li>Senders can pause, resume, or cancel streams</li>
+                  <li>Add milestones to release funds at specific points</li>
+                </ul>
+              </div>
+            }
+          />
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create Stream
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refetchStreams}
+            disabled={isLoadingStreams}
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${isLoadingStreams ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setShowCreate(true)}
+          >
+            <PlusCircle className="h-4 w-4 mr-1" />
+            Create Stream
+          </Button>
+        </div>
       </div>
 
       <div className="mb-6 bg-secondary/30 p-4 rounded-lg">
@@ -250,16 +284,24 @@ const OptimizedStreams = () => {
                 <EnhancedStreamCard
                   key={stream.id}
                   stream={stream}
-                  onPause={() => pauseStream(stream.id)}
-                  onResume={() => resumeStream(stream.id)}
-                  onCancel={() => cancelStream(stream.id)}
+                  onPause={() => {
+                    pauseStream(stream.id).then(() => refreshAllData());
+                  }}
+                  onResume={() => {
+                    resumeStream(stream.id).then(() => refreshAllData());
+                  }}
+                  onCancel={() => {
+                    cancelStream(stream.id).then(() => refreshAllData());
+                  }}
                   onReleaseMilestone={(stream, milestone) => {
                     setSelectedStream(stream);
                     setSelectedMilestone(milestone);
                     setShowReleaseDialog(true);
                   }}
-                  onWithdraw={() => withdrawFromStream(stream.id)}
-                  onStreamComplete={updateStreamStatus}
+                  onWithdraw={() => {
+                    withdrawFromStream(stream.id).then(() => refreshAllData());
+                  }}
+                  onStreamComplete={handleStreamStatusUpdate}
                 />
               ))}
             </div>
@@ -274,7 +316,7 @@ const OptimizedStreams = () => {
           ) : completedStreams.length === 0 ? (
             <div className="text-center py-12 border border-dashed rounded-lg">
               <div className="flex justify-center mb-3">
-                <CheckCircle className="h-10 w-10 text-muted-foreground/50" />
+                <CheckCircle className="h-10 w-10 text-white" />
               </div>
               <h3 className="text-lg font-medium mb-1">No completed streams</h3>
               <p className="text-muted-foreground">
@@ -287,8 +329,10 @@ const OptimizedStreams = () => {
                 <EnhancedStreamCard
                   key={stream.id}
                   stream={stream}
-                  onWithdraw={() => withdrawFromStream(stream.id)}
-                  onStreamComplete={updateStreamStatus}
+                  onWithdraw={() => {
+                    withdrawFromStream(stream.id).then(() => refreshAllData());
+                  }}
+                  onStreamComplete={handleStreamStatusUpdate}
                 />
               ))}
             </div>
@@ -298,17 +342,13 @@ const OptimizedStreams = () => {
 
       {/* Create Stream Dialog */}
       {showCreate && (
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
-          <DialogContent className="max-w-2xl">
-            <StreamForm
-              onCancel={() => setShowCreate(false)}
-              onSubmit={handleCreateStream}
-              isCreatingStream={isCreatingStream}
-              tokens={tokens}
-              isLoadingTokens={isLoadingTokens}
-            />
-          </DialogContent>
-        </Dialog>
+        <StreamForm
+          onCancel={() => setShowCreate(false)}
+          onSubmit={handleCreateStream}
+          isCreatingStream={isCreatingStream}
+          tokens={tokens}
+          isLoadingTokens={isLoadingTokens}
+        />
       )}
 
       {/* Release Milestone Dialog */}
@@ -318,46 +358,24 @@ const OptimizedStreams = () => {
             <DialogHeader>
               <DialogTitle>Release Milestone</DialogTitle>
               <DialogDescription>
-                Are you sure you want to release this milestone? This action cannot be undone.
+                Are you sure you want to release this milestone? This will make {selectedMilestone.percentage}% of the total stream amount available for the recipient to claim.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
-              <p className="text-sm text-muted-foreground">
-                Milestone: {selectedMilestone.description}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Percentage: {selectedMilestone.percentage}%
-              </p>
+            <div className="py-2">
+              <div className="bg-secondary/30 p-3 rounded-md">
+                <p className="text-sm font-medium">Milestone Details</p>
+                <p className="text-sm mt-1">{selectedMilestone.description}</p>
+                <p className="text-sm mt-2 font-medium">Amount: {(selectedStream.total * selectedMilestone.percentage / 100).toFixed(2)} {selectedStream.token}</p>
+              </div>
             </div>
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowReleaseDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  try {
-                    await releaseMilestone(selectedStream.id, selectedMilestone.id);
-                    toast({
-                      title: "Milestone Released",
-                      description: "The milestone has been successfully released",
-                    });
-                    setShowReleaseDialog(false);
-                    refetchStreams();
-                  } catch (error) {
-                    console.error('Error releasing milestone:', error);
-                    toast({
-                      title: "Error Releasing Milestone",
-                      description: error instanceof Error ? error.message : "An unknown error occurred",
-                      variant: "destructive"
-                    });
-                  }
-                }}
-              >
-                Release
-              </Button>
+              <Button variant="outline" onClick={() => setShowReleaseDialog(false)}>Cancel</Button>
+              <Button onClick={() => {
+                releaseMilestone(selectedStream.id, parseInt(selectedMilestone.id.split('-')[2])).then(() => {
+                  setShowReleaseDialog(false);
+                  refreshAllData();
+                });
+              }}>Release Milestone</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -366,4 +384,4 @@ const OptimizedStreams = () => {
   );
 };
 
-export default OptimizedStreams;
+export default AutoRefreshStreams;

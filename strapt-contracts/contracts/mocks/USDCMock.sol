@@ -16,7 +16,7 @@ contract USDCMock is ERC20, Ownable {
      * @param initialOwner The address that will be the owner of the contract
      */
     constructor(address initialOwner) 
-        ERC20("USD Coin", "USDC") 
+        ERC20("IDRX Coin", "IDRX") 
         Ownable(initialOwner)
     {}
 

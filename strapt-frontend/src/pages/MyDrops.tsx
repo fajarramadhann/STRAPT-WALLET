@@ -398,9 +398,9 @@ const MyDrops = () => {
                         <Button
                           className="w-full"
                           onClick={() => handleRefund(drop.id)}
-                          disabled={refundingDrops[drop.id] || isLoading || isRefunding}
+                          disabled={refundingDrops[drop.id] || isLoading}
                         >
-                          {refundingDrops[drop.id] || isRefunding ? (
+                          {refundingDrops[drop.id] ? (
                             <>
                               <Loading size="sm" className="mr-2" /> Refunding...
                             </>

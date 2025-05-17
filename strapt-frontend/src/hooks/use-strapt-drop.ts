@@ -200,7 +200,7 @@ export function useStraptDrop() {
 
         // Calculate a longer expiry time (48 hours) to avoid potential expiry issues
         const safeExpiryTime = Math.floor(Date.now() / 1000) + (48 * 60 * 60);
-        
+
         let createReceipt;
         let createRequest;
 
@@ -216,11 +216,11 @@ export function useStraptDrop() {
           createRequest = simulationResult.request;
         } catch (simulationError) {
           console.error('Simulation error:', simulationError);
-          
+
           // Check if it's the specific error signature we're looking for
           if (simulationError.message?.includes('0xfb8f41b2')) {
             console.log('Found known error signature 0xfb8f41b2. Attempting to bypass simulation.');
-            
+
             // Create the request manually with longer expiry time
             createRequest = {
               address: STRAPT_DROP_ADDRESS,
@@ -292,18 +292,18 @@ export function useStraptDrop() {
         }
 
         setCurrentDropId(dropId);
-        toast.success('STRAPT Drop created successfully!');
+        // Success toast will be shown by the component
         return dropId;
       } catch (error) {
         console.error('Error creating drop:', error);
-        toast.error('Failed to create STRAPT Drop');
+        // Don't show toast here, let the calling component handle it
         throw error;
       } finally {
         setIsCreating(false);
       }
     } catch (error) {
       console.error('Error creating drop:', error);
-      toast.error('Failed to create STRAPT Drop');
+      // Don't show toast here, let the calling component handle it
       throw error;
     } finally {
       setIsLoading(false);
@@ -402,6 +402,7 @@ export function useStraptDrop() {
   const refundExpiredDrop = async (dropId: string) => {
     try {
       setIsLoading(true);
+      // We still set isRefunding for backward compatibility, but the UI uses per-drop state
       setIsRefunding(true);
 
       if (!isConnected || !address) {
@@ -446,8 +447,6 @@ export function useStraptDrop() {
         console.error('Error refunding drop:', error);
         toast.error('Failed to refund STRAPT Drop');
         throw error;
-      } finally {
-        setIsRefunding(false);
       }
     } catch (error) {
       console.error('Error refunding drop:', error);
@@ -455,6 +454,7 @@ export function useStraptDrop() {
       throw error;
     } finally {
       setIsLoading(false);
+      setIsRefunding(false);
     }
   };
 

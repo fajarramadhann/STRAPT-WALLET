@@ -25,7 +25,7 @@ const ReceivedStats = ({ totalReceived, recentActivity }: ReceivedStatsProps) =>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center">
           <BarChart3 className="h-5 w-5 mr-2 text-primary" />
-          Funds Received
+          Funds Received <span className="ml-3 text-xs text-amber-500 font-normal">(dummy data)</span>
         </CardTitle>
       </CardHeader>
       <CardContent>

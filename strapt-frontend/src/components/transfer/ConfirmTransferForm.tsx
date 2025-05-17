@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { useTransferContext } from '@/contexts/TransferContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { Loading } from '@/components/ui/loading';
 import { toast } from 'sonner';
 
 interface ConfirmTransferFormProps {
@@ -116,56 +117,91 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
             </Alert>
           )}
 
-          {/* Show loading animation for direct transfers */}
-          {transferType === 'direct' && isDirectTransferLoading && (
-            <Alert className="mt-4 bg-blue-50 border-blue-200">
-              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-              <AlertTitle className="text-blue-700">Processing Direct Transfer</AlertTitle>
-              <AlertDescription className="text-blue-600">
-                Please wait while we process your direct transfer. This may take a few moments to complete.
-                <div className="mt-2 w-full bg-blue-100 rounded-full h-2.5">
-                  <div className="bg-blue-500 h-2.5 rounded-full animate-pulse w-full" />
+          {/* Transaction Status Alerts - Simplified and Cleaner */}
+          {(transferType === 'direct' && isDirectTransferLoading) || isApproving || (transferType !== 'direct' && !isApproved && !isApproving) ? (
+            <div className="mt-4 border rounded-lg overflow-hidden">
+              {/* Direct Transfer Processing */}
+              {transferType === 'direct' && isDirectTransferLoading && (
+                <div className="p-4 bg-primary/5 border-b border-primary/10">
+                  <div className="flex items-center">
+                    <div className="mr-3">
+                      <div className="relative">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary/30" />
+                        <div className="absolute top-0 left-0 animate-spin-reverse [animation-delay:-0.2s]">
+                          <Loader2 className="h-5 w-5 text-primary" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm">Processing Transfer</h4>
+                      <p className="text-xs text-muted-foreground">Please wait while your transaction is being processed</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 w-full bg-primary/10 rounded-full h-1.5">
+                    <div className="bg-primary h-1.5 rounded-full animate-pulse w-full" />
+                  </div>
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
+              )}
 
-          {/* Only show approval alerts for protected transfers */}
-          {transferType !== 'direct' && !isApproved && !isApproving && (
-            <Alert variant="default" className="mt-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Token Approval Required</AlertTitle>
-              <AlertDescription>
-                You need to approve the contract to use your {selectedToken.symbol} tokens.
-                After approval, you'll be able to confirm your transfer.
-              </AlertDescription>
-            </Alert>
-          )}
+              {/* Token Approval Required */}
+              {transferType !== 'direct' && !isApproved && !isApproving && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/20">
+                  <div className="flex items-center">
+                    <AlertCircle className="h-5 w-5 mr-3 text-amber-500" />
+                    <div>
+                      <h4 className="font-medium text-sm">Token Approval Required</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Approve the contract to use your {selectedToken.symbol} tokens before confirming the transfer
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-          {isApproving && (
-            <Alert variant="default" className="mt-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <AlertTitle>Approving Token</AlertTitle>
-              <AlertDescription>
-                Please wait while we approve the contract to use your {selectedToken.symbol} tokens.
-              </AlertDescription>
-            </Alert>
-          )}
+              {/* Token Approval Processing */}
+              {isApproving && (
+                <div className="p-4 bg-primary/5">
+                  <div className="flex items-center">
+                    <div className="mr-3">
+                      <div className="relative">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary/30" />
+                        <div className="absolute top-0 left-0 animate-spin-reverse [animation-delay:-0.2s]">
+                          <Loader2 className="h-5 w-5 text-primary" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm">Approving {selectedToken.symbol}</h4>
+                      <p className="text-xs text-muted-foreground">Please confirm the approval transaction in your wallet</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 w-full bg-primary/10 rounded-full h-1.5">
+                    <div className="bg-primary h-1.5 rounded-full animate-pulse w-full" />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
 
-          {isApproved && (
-            <Alert className="mt-4 bg-green-50 border-green-200">
-              <Check className="h-4 w-4 text-green-500" />
-              <AlertTitle className="text-green-700">
-                {transferType === 'direct' ? 'Ready to Transfer' : 'Token Approved'}
-              </AlertTitle>
-              <AlertDescription className="text-green-600">
-                {transferType === 'direct'
-                  ? `You can now send your ${selectedToken.symbol} tokens directly to the recipient.`
-                  : `You have successfully approved the contract to use your ${selectedToken.symbol} tokens.
-                     Please click the "Confirm Transfer" button below to complete your transfer.`
-                }
-              </AlertDescription>
-            </Alert>
+          {isApproved && !isLoading && (
+            <div className="mt-4 border rounded-lg overflow-hidden">
+              <div className="p-4 bg-green-50 dark:bg-green-950/20">
+                <div className="flex items-center">
+                  <Check className="h-5 w-5 mr-3 text-green-500" />
+                  <div>
+                    <h4 className="font-medium text-sm">
+                      {transferType === 'direct' ? 'Ready to Transfer' : `${selectedToken.symbol} Approved`}
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      {transferType === 'direct'
+                        ? `You can now send your ${selectedToken.symbol} tokens directly to the recipient.`
+                        : 'Your tokens are approved for transfer. You can now confirm your transaction.'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -215,19 +251,11 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
         <div className="border border-border rounded-lg p-4">
           <div className="flex justify-between mb-2">
             <span className="text-sm text-muted-foreground">Transfer Fee:</span>
-            <span className="font-medium">
-              {transferType === 'direct'
-                ? 'No fee'
-                : `0.001 ${selectedToken.symbol}`}
-            </span>
+            <span className="font-medium">No fee</span>
           </div>
           <div className="flex justify-between font-medium">
             <span>Total:</span>
-            <span>
-              {transferType === 'direct'
-                ? `${Number.parseFloat(amount).toFixed(3)} ${selectedToken.symbol}`
-                : `${(Number.parseFloat(amount) + 0.001).toFixed(3)} ${selectedToken.symbol}`}
-            </span>
+            <span>{Number.parseFloat(amount).toFixed(3)} {selectedToken.symbol}</span>
           </div>
         </div>
       </CardContent>
@@ -238,13 +266,18 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
             type="button"
             onClick={handleConfirm}
             className="w-full"
-            disabled={isLoading}
+            disabled={isLoading || isDirectTransferLoading}
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing Direct Transfer...
-              </>
+            {isLoading || isDirectTransferLoading ? (
+              <div className="flex items-center justify-center">
+                <div className="relative mr-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary-foreground/30" />
+                  <div className="absolute top-0 left-0 animate-spin-reverse [animation-delay:-0.2s]">
+                    <Loader2 className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                </div>
+                <span>Processing Transfer...</span>
+              </div>
             ) : (
               "Send Direct Transfer"
             )}
@@ -257,14 +290,23 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
               onClick={handleApprove}
               className="w-full"
               disabled={isApproving || isLoading}
+              variant={isApproving ? "outline" : "default"}
             >
               {isApproving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Approving Token...
-                </>
+                <div className="flex items-center justify-center">
+                  <div className="relative mr-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary/30" />
+                    <div className="absolute top-0 left-0 animate-spin-reverse [animation-delay:-0.2s]">
+                      <Loader2 className="h-4 w-4 text-primary" />
+                    </div>
+                  </div>
+                  <span>Approving {selectedToken.symbol}...</span>
+                </div>
               ) : (
-                "Approve Token"
+                <>
+                  <Check className="mr-2 h-4 w-4 opacity-70" />
+                  Approve {selectedToken.symbol}
+                </>
               )}
             </Button>
           ) : (
@@ -275,10 +317,15 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
               disabled={isLoading}
             >
               {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing Protected Transfer...
-                </>
+                <div className="flex items-center justify-center">
+                  <div className="relative mr-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary-foreground/30" />
+                    <div className="absolute top-0 left-0 animate-spin-reverse [animation-delay:-0.2s]">
+                      <Loader2 className="h-4 w-4 text-primary-foreground" />
+                    </div>
+                  </div>
+                  <span>Processing Transfer...</span>
+                </div>
               ) : (
                 "Confirm Protected Transfer"
               )}

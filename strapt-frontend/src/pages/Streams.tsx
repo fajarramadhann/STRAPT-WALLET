@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Play, Pause, StopCircle, PlusCircle, BarChart2, ArrowRight, Milestone, CircleDollarSign, Info } from 'lucide-react';
+import { Play, Pause, StopCircle, PlusCircle, BarChart2, ArrowRight, Milestone, CircleDollarSign, Info, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -80,7 +80,7 @@ const Streams = () => {
   // Convert contract streams to UI streams
   const [activeStreams, setActiveStreams] = useState<UIStream[]>([]);
   const [completedStreams, setCompletedStreams] = useState<UIStream[]>([]);
-  
+
   // Update selected token when tokens array changes
   useEffect(() => {
     if (tokens.length > 0) {
@@ -280,15 +280,15 @@ const Streams = () => {
   const getStatusIcon = (status: 'active' | 'paused' | 'completed' | 'canceled') => {
     switch (status) {
       case 'active':
-        return <Play className="h-4 w-4 text-green-500" />;
+        return <Play className="h-4 w-4 text-white" />;
       case 'paused':
         return <Pause className="h-4 w-4 text-amber-500" />;
       case 'completed':
-        return <StopCircle className="h-4 w-4 text-blue-500" />;
+        return <StopCircle className="h-4 w-4 text-white" />;
       case 'canceled':
         return <StopCircle className="h-4 w-4 text-red-500" />;
       default:
-        return <Play className="h-4 w-4 text-green-500" />;
+        return <Play className="h-4 w-4 text-white" />;
     }
   };
 
@@ -833,7 +833,7 @@ const Streams = () => {
                 </div>
               ) : (
                 <div className="text-center p-8">
-                  <BarChart2 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <CheckCircle className="h-12 w-12 text-white mx-auto mb-3" />
                   <h3 className="font-medium mb-1">No Completed Streams</h3>
                   <p className="text-sm text-muted-foreground">
                     Your completed streams will appear here

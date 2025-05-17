@@ -10,6 +10,7 @@ import { Loading } from "@/components/ui/loading";
 import { XellarProvider } from './providers/XellarProvider';
 import { AppStateProvider } from './state/AppStateContext';
 import { TransferStateProvider } from './state/TransferStateContext';
+import { DataProvider } from './providers/DataProvider';
 
 // Import WalletCheck eagerly as it's needed for route protection
 import WalletCheck from './components/WalletCheck';
@@ -23,6 +24,7 @@ const Index = lazy(() => import("./pages/Index"));
 const Home = lazy(() => import("./pages/Home"));
 const Transfer = lazy(() => import("./pages/Transfer"));
 const Streams = lazy(() => import("./pages/OptimizedStreams"));
+const AutoRefreshStreams = lazy(() => import("./pages/AutoRefreshStreams"));
 const Pools = lazy(() => import("./pages/Pools"));
 const StraptDrop = lazy(() => import("./pages/StraptDrop"));
 const StraptDropClaim = lazy(() => import("./pages/StraptDropClaim"));
@@ -51,6 +53,7 @@ const App = () => {
             <TooltipProvider>
               <Sonner position="top-right" />
               <BrowserRouter>
+                <DataProvider>
                 <Routes>
                   <Route path="/" element={
                     <Suspense fallback={<PageLoading />}>
@@ -72,6 +75,11 @@ const App = () => {
                         </Suspense>
                       } />
                       <Route path="streams" element={
+                        <Suspense fallback={<PageLoading />}>
+                          <AutoRefreshStreams />
+                        </Suspense>
+                      } />
+                      <Route path="streams-old" element={
                         <Suspense fallback={<PageLoading />}>
                           <Streams />
                         </Suspense>
@@ -124,8 +132,9 @@ const App = () => {
                     </Suspense>
                   } />
                 </Routes>
+                </DataProvider>
               </BrowserRouter>
-            </TooltipProvider>
+              </TooltipProvider>
           </TransferStateProvider>
         </AppStateProvider>
       </XellarProvider>

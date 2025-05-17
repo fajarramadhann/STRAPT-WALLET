@@ -40,7 +40,6 @@ const Index = () => {
             <div className="hidden md:flex items-center space-x-6">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
               <a href="#why" className="text-muted-foreground hover:text-foreground transition-colors">Why STRAPT</a>
-              <ConnectButton label="Launch App" />
             </div>
             <ConnectButton label="Launch App" className="md:hidden" />
           </div>
@@ -192,11 +191,6 @@ const Index = () => {
             <p className="text-lg mb-6 max-w-2xl mx-auto">
               Join thousands of users who are already experiencing the future of crypto payments.
             </p>
-            <ConnectButton
-              label={<>Launch STRAPT <ArrowRight className="ml-2 h-5 w-5" /></>}
-              size="lg"
-              className="text-base"
-            />
           </div>
         </div>
 

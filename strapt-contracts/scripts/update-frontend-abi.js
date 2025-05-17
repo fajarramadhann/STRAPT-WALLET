@@ -27,6 +27,14 @@ async function main() {
       frontendDir
     );
 
+    // Update StraptDrop ABI
+    console.log("Updating frontend ABI for StraptDrop...");
+    await updateContractABI(
+      'StraptDrop.sol',
+      'StraptDrop',
+      frontendDir
+    );
+
     // Update contract config
     await updateContractConfig(frontendDir);
     console.log("Frontend update completed successfully.");
@@ -89,7 +97,8 @@ async function updateContractConfig(frontendDir) {
       config.ProtectedTransferV2 = {
         address: ptv2Info.contractAddress,
         network: ptv2Info.network,
-        supportedTokens: ptv2Info.supportedTokens
+        supportedTokens: ptv2Info.supportedTokens,
+        feeInBasisPoints: ptv2Info.feeInBasisPoints || 0
       };
 
       console.log("Updated config with ProtectedTransferV2 deployment info.");
@@ -104,10 +113,27 @@ async function updateContractConfig(frontendDir) {
       config.PaymentStream = {
         address: psInfo.contractAddress,
         network: psInfo.network,
-        supportedTokens: psInfo.supportedTokens
+        supportedTokens: psInfo.supportedTokens,
+        feeInBasisPoints: psInfo.feeInBasisPoints || 0
       };
 
       console.log("Updated config with PaymentStream deployment info.");
+    }
+
+    // Update StraptDrop config
+    const sdFiles = fs.readdirSync(deploymentPath).filter(file => file.startsWith('StraptDrop-'));
+    if (sdFiles.length > 0) {
+      const latestSd = sdFiles.sort().pop();
+      const sdInfo = require(path.join(deploymentPath, latestSd));
+
+      config.StraptDrop = {
+        address: sdInfo.contractAddress,
+        network: sdInfo.network,
+        supportedTokens: sdInfo.supportedTokens,
+        feeInBasisPoints: sdInfo.feeInBasisPoints || 0
+      };
+
+      console.log("Updated config with StraptDrop deployment info.");
     }
 
     // Write updated config

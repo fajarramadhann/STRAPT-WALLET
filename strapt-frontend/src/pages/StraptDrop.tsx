@@ -111,6 +111,18 @@ const StraptDrop = () => {
         console.log('User rejected transaction, not showing error');
         return;
       }
+
+      // If we got here, the drop was created successfully
+      console.log('Drop created successfully with ID:', result);
+
+      // Generate the drop link
+      const baseUrl = window.location.origin;
+      const dropLink = `${baseUrl}/app/strapt-drop/claim/${result}`;
+      setDropLink(dropLink);
+
+      // Show success toast and dialog
+      toast.success('STRAPT Drop created successfully!');
+      setShowSuccess(true);
     } catch (error) {
       // Only show error toast if it's not a user rejection
       if (error instanceof Error &&

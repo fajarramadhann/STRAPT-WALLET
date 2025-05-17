@@ -1,11 +1,11 @@
 
 import { useState } from 'react';
-import { Check, Loader2, Copy, X } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 
 interface UsernameRegistrationProps {
@@ -18,8 +18,6 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [step, setStep] = useState(1);
   const [progress, setProgress] = useState(0);
-  const [walletAddress, setWalletAddress] = useState('0x14zd...8xct');
-  const [generatingAddress, setGeneratingAddress] = useState(false);
   const { toast } = useToast();
 
   // Mock function to check username availability
@@ -63,7 +61,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
     const isAvailable = await checkUsernameAvailability(username);
 
     if (isAvailable) {
-      // Move to wallet generation step
+      // Move directly to completion step
       setChecking(false);
       nextStep();
     } else {
@@ -77,37 +75,21 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
   };
 
   const nextStep = () => {
-    setProgress((step / 3) * 100);
-    setStep(step + 1);
+    setProgress((step / 2) * 100);
+    setStep(2); // We now only have 2 steps: username selection and completion
   };
 
   const prevStep = () => {
     if (step > 1) {
-      setStep(step - 1);
-      setProgress(((step - 2) / 3) * 100);
+      setStep(1);
+      setProgress(0);
     }
-  };
-
-  const generateWallet = async () => {
-    setGeneratingAddress(true);
-    // Simulate wallet generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setGeneratingAddress(false);
-    nextStep();
-  };
-
-  const handleCopyAddress = () => {
-    navigator.clipboard.writeText(walletAddress);
-    toast({
-      title: "Address Copied",
-      description: "Wallet address copied to clipboard",
-    });
   };
 
   const handleComplete = () => {
     toast({
       title: "Registration Complete",
-      description: `@${username}.lisk is now yours!`,
+      description: `@${username}.strapt is now yours!`,
     });
     onComplete();
   };
@@ -132,7 +114,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                     className="pr-20"
                   />
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">
-                    .lisk
+                    .strapt
                   </div>
                 </div>
 
@@ -155,7 +137,7 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
                 )}
 
                 <p className="text-xs text-muted-foreground mt-1">
-                  Choose a username for your wallet. This will be your public identity on TrustStream.
+                  Choose a username for your wallet. This will be your public identity on STRAPT.
                 </p>
               </div>
 
@@ -192,87 +174,40 @@ const UsernameRegistration = ({ onComplete }: UsernameRegistrationProps) => {
           <div className="space-y-4">
             <div className="text-center">
               <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
-                <Avatar className="h-16 w-16 border-2 border-primary">
-                  <AvatarFallback className="text-xl">{username[0]}</AvatarFallback>
-                </Avatar>
+                <Check className="h-10 w-10 text-primary" />
               </div>
-              <h3 className="text-lg font-medium">@{username}.lisk</h3>
+              <h3 className="text-lg font-medium">Registration Complete!</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Generate a new wallet for your username
+                Your username @{username}.strapt is now registered
               </p>
             </div>
 
             <div className="space-y-1 bg-secondary/30 p-3 rounded-md">
               <p className="text-sm font-medium">What happens next:</p>
               <ul className="text-xs text-muted-foreground list-disc pl-5">
-                <li>We'll generate a new EVM wallet address for you</li>
-                <li>Your username will be linked to this wallet address</li>
-                <li>You can use this wallet to send and receive payments</li>
+                <li>Your username will be linked to your current wallet address</li>
+                <li>You can use this username to send and receive payments</li>
+                <li>Others can find you using @{username}.strapt</li>
               </ul>
             </div>
 
-            <div className="space-y-2">
-              <Button
-                className="w-full"
-                onClick={generateWallet}
-                disabled={generatingAddress}
-              >
-                {generatingAddress ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Wallet
-                  </>
-                ) : (
-                  'Generate Wallet'
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={prevStep}
-                disabled={generatingAddress}
-              >
-                Go Back
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-4">
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
-                <Check className="h-10 w-10 text-primary" />
-              </div>
-              <h3 className="text-lg font-medium">Registration Complete!</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Your username @{username}.lisk is now registered
-              </p>
+            {/* <div className="flex justify-center">
+              <Avatar className="h-16 w-16 border-2 border-primary">
+                <AvatarFallback className="text-xl">{username[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
             </div>
 
-            <div className="space-y-2 p-3 bg-secondary/30 rounded-md">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Your wallet address:</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2"
-                  onClick={handleCopyAddress}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <div className="p-2 bg-background rounded text-xs font-mono break-all">
-                {walletAddress}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Keep your wallet address safe. You'll need it to access your account.
-              </p>
-            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={prevStep}
+            >
+              Go Back
+            </Button> */}
           </div>
         )}
       </CardContent>
-      {step === 3 && (
+      {step === 2 && (
         <CardFooter>
           <Button
             className="w-full"

@@ -26,9 +26,10 @@ interface StreamFormProps {
   }) => Promise<void>;
   isCreatingStream: boolean;
   tokens: TokenOption[];
+  isLoadingTokens: boolean;
 }
 
-const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens }: StreamFormProps) => {
+const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens, isLoadingTokens }: StreamFormProps) => {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [duration, setDuration] = useState(60);
@@ -177,6 +178,7 @@ const StreamForm = ({ onCancel, onSubmit, isCreatingStream, tokens }: StreamForm
                 tokens={tokens}
                 selectedToken={selectedToken}
                 onTokenChange={setSelectedToken}
+                isLoading={isLoadingTokens}
               />
             </div>
 

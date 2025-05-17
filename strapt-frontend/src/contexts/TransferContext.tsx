@@ -80,7 +80,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   const [withTimeout, setWithTimeout] = useState(true); // Always true for 24-hour expiry
   const [withPassword, setWithPassword] = useState(true); // Default to true for claim code
   const [password, setPassword] = useState('');
-  const [transferType, setTransferType] = useState<TransferType>('claim');
+  const [transferType, setTransferType] = useState<TransferType>('direct'); // Default to direct transfer
   const [transferLink, setTransferLink] = useState('');
 
   // Get account information
@@ -214,12 +214,12 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
       // Parse amount with correct decimals
       const { parseUnits } = await import('viem');
       const decimals = selectedToken.symbol === 'USDC' ? 6 : 2;
-      
+
       // Use a much larger approval amount to avoid frequent re-approvals
       // For safety, we'll approve for a large amount (1,000,000 tokens)
       // This is a common pattern to reduce transactions and gas costs
       const safetyFactor = BigInt("1000000000000"); // A very large multiplier
-      
+
       // Get token address
       const tokenAddress = getTokenAddress();
 
@@ -228,10 +228,10 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         console.log('Approving token for maximum allowance');
-        
+
         // Use the maximum possible approval (2^256 - 1) to avoid future approvals
         const maxApproval = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        
+
         const hash = await writeContract(config, {
           abi: tokenABI,
           functionName: 'approve',
@@ -259,7 +259,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         return false;
       } catch (error) {
         console.error('Error approving token:', error);
-        
+
         // Check for user rejection vs other errors
         if (error.message?.includes('rejected') || error.message?.includes('denied')) {
           toast.error("Approval rejected", {
@@ -270,7 +270,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
             description: "An error occurred while approving the token. Please try again."
           });
         }
-        
+
         return false;
       }
     } catch (error) {
@@ -482,20 +482,20 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
           // For password-protected transfers, don't include the password in the URL
           const link = `${baseUrl}/app/claims?id=${result.transferId}`;
           setTransferLink(link);
-          
+
           // Save the transfer ID
           setTransferId(result.transferId);
-          
+
           // Set the gross amount (original amount before fee)
           setGrossAmount(amount);
-          
+
           toast.success("Password-protected transfer link created", {
             description: `Transfer of ${amount} ${selectedToken.symbol} is ready to share`
           });
-          
+
           // Reset approval state for next transfer
           setIsApproved(false);
-          
+
           return true;
         }
       } else {
@@ -516,20 +516,20 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
           const baseUrl = window.location.origin;
           const link = `${baseUrl}/app/claims?id=${result.transferId}`;
           setTransferLink(link);
-          
+
           // Save the transfer ID
           setTransferId(result.transferId);
-          
+
           // Set the gross amount (original amount before fee)
           setGrossAmount(amount);
-          
+
           toast.success("Transfer link created", {
             description: `Transfer of ${amount} ${selectedToken.symbol} is ready to share`
           });
-          
+
           // Reset approval state for next transfer
           setIsApproved(false);
-          
+
           return true;
         }
       }
@@ -564,16 +564,16 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   const claimProtectedTransfer = async (id: string, code: string) => {
     try {
       console.log('Attempting to claim transfer with ID:', id, 'and code:', code);
-      
+
       // Check if wallet is connected
       if (!address) {
         toast.error("No wallet connected");
         return false;
       }
-      
+
       // Trim any whitespace from the claim code
       const trimmedCode = code.trim();
-      
+
       // Check if the code is valid before attempting to claim
       if (!trimmedCode) {
         console.error('Empty claim code provided');
@@ -582,10 +582,10 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
         });
         return false;
       }
-      
+
       // Log the claim code for debugging
       console.log('Using claim code:', trimmedCode, 'length:', trimmedCode.length);
-      
+
       // Attempt to claim the transfer
       return await claimTransfer(id, trimmedCode);
     } catch (error) {
@@ -622,7 +622,7 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
   const claimProtectedLinkTransfer = async (id: string) => {
     try {
       console.log('Attempting to claim link transfer with ID:', id);
-      
+
       // Check if wallet is connected
       if (!address) {
         toast.error("No wallet connected");

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Send, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { TransferProvider, useTransferContext } from '@/contexts/TransferContext';
@@ -8,6 +8,7 @@ import ProtectionOptionsForm from '@/components/transfer/ProtectionOptionsForm';
 import ConfirmTransferForm from '@/components/transfer/ConfirmTransferForm';
 import TransferSuccessView from '@/components/transfer/TransferSuccessView';
 import TransferQRCode from '@/components/transfer/TransferQRCode';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Inner component to access context
 const TransferContent = () => {
@@ -16,24 +17,30 @@ const TransferContent = () => {
   const { toast } = useToast();
   const {
     transferType,
-    isLoading,
+    setTransferType,
     recipient,
     amount,
     selectedToken,
     withPassword
   } = useTransferContext();
 
-  // Skip protection options step for direct transfers
+  // Set the initial transfer type to 'direct' when the component mounts
   useEffect(() => {
-    if (step === 2 && transferType === 'direct') {
-      nextStep(); // Skip to confirmation step
-    }
-  }, [step, transferType]);
+    setTransferType('direct');
+  }, [setTransferType]);
 
   const nextStep = () => {
     setStep(step + 1);
     window.scrollTo(0, 0);
   };
+
+  // Skip protection options step for direct transfers
+  useEffect(() => {
+    if (step === 2 && transferType === 'direct') {
+      setStep(step + 1); // Skip to confirmation step
+      window.scrollTo(0, 0);
+    }
+  }, [step, transferType]);
 
   const prevStep = () => {
     // If we're at the confirmation step and this is a direct transfer,
@@ -85,6 +92,15 @@ const TransferContent = () => {
     setShowQR(true);
   };
 
+  // Handle tab change
+  const handleTabChange = (tab: string) => {
+    if (tab === 'send') {
+      setTransferType('direct');
+    } else if (tab === 'claim') {
+      setTransferType('claim');
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div className="flex items-center mb-4">
@@ -94,33 +110,61 @@ const TransferContent = () => {
           </Button>
         )}
         <h1 className="text-xl font-semibold">
-          {step === 1 && "Protected Transfer"}
+          {step === 1 && "Transfer Tokens"}
           {step === 2 && "Protection Options"}
           {step === 3 && "Confirm Transfer"}
           {step === 4 && "Transfer Created"}
         </h1>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        {step === 1 && (
-          <RecipientDetailsForm onNext={nextStep} />
-        )}
+      {step === 1 ? (
+        <Tabs
+          defaultValue="send"
+          value={transferType === 'direct' ? 'send' : 'claim'}
+          onValueChange={handleTabChange}
+          className="w-full"
+        >
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="send" className="flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              <span>Direct Transfer</span>
+            </TabsTrigger>
+            <TabsTrigger value="claim" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              <span>Link/QR Transfer</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {step === 2 && transferType === 'claim' && (
-          <ProtectionOptionsForm onNext={nextStep} />
-        )}
+          <TabsContent value="send" className="mt-0">
+            <form onSubmit={handleSubmit}>
+              <RecipientDetailsForm onNext={nextStep} hideTransferMethod={true} />
+            </form>
+          </TabsContent>
 
-        {step === 3 && (
-          <ConfirmTransferForm onSubmit={handleConfirm} />
-        )}
+          <TabsContent value="claim" className="mt-0">
+            <form onSubmit={handleSubmit}>
+              <RecipientDetailsForm onNext={nextStep} hideTransferMethod={true} />
+            </form>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          {step === 2 && transferType === 'claim' && (
+            <ProtectionOptionsForm onNext={nextStep} />
+          )}
 
-        {step === 4 && (
-          <TransferSuccessView
-            onReset={resetTransfer}
-            onShowQR={handleShowQR}
-          />
-        )}
-      </form>
+          {step === 3 && (
+            <ConfirmTransferForm onSubmit={handleConfirm} />
+          )}
+
+          {step === 4 && (
+            <TransferSuccessView
+              onReset={resetTransfer}
+              onShowQR={handleShowQR}
+            />
+          )}
+        </form>
+      )}
 
       <TransferQRCode
         showQR={showQR}
