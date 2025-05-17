@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useCallback, memo } from 'react';
+import { useState, lazy, Suspense, useCallback, memo, useEffect } from 'react';
 import { Copy, Moon, Sun, ChevronRight, LogOut, Shield, BarChart2, Users, Info, FileText, QrCode, UserPlus, Clock, CalendarClock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -11,9 +11,13 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTokenBalances } from '@/hooks/useTokenUtils';
+import { usePaymentStream, StreamStatus } from '@/hooks/use-payment-stream';
+import { cn } from '@/lib/utils';
 import QRCode from '@/components/QRCode';
 import QRCodeScanner from '@/components/QRCodeScanner';
 import { Loading } from '@/components/ui/loading';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Lazy load the tab content components
 const ProfileActivityTimeline = lazy(() => import('@/components/profile/ProfileActivityTimeline'));
@@ -81,10 +85,30 @@ const OptimizedProfile = () => {
   const [showQR, setShowQR] = useState(false);
   const [activeTab, setActiveTab] = useState('activity');
   const { toast } = useToast();
-  const { address, connector } = useAccount();
+  const { address } = useAccount();
   const { disconnect } = useDisconnect();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+
+  // Get token balances
+  const { isLoading: isLoadingTokens, idrxBalance } = useTokenBalances();
+
+  // Get user streams
+  const { useUserStreams } = usePaymentStream();
+  const { streams, isLoading: isLoadingStreams } = useUserStreams(address);
+
+  // Count active streams
+  const [activeStreamsCount, setActiveStreamsCount] = useState(0);
+
+  // Update active streams count when streams change
+  useEffect(() => {
+    if (streams) {
+      const activeCount = streams.filter(stream =>
+        stream.status === StreamStatus.Active
+      ).length;
+      setActiveStreamsCount(activeCount);
+    }
+  }, [streams]);
 
   const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
 
@@ -151,7 +175,7 @@ const OptimizedProfile = () => {
               <h2 className="text-lg font-medium">@vitalik.strapt</h2>
               <div className={`flex items-center text-sm text-muted-foreground ${isMobile ? 'justify-center' : ''}`}>
                 <span className="truncate">{truncatedAddress}</span>
-                <button onClick={handleCopyAddress} className="ml-1 p-1" aria-label="Copy address">
+                <button type="button" onClick={handleCopyAddress} className="ml-1 p-1" aria-label="Copy address">
                   <Copy className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -174,22 +198,30 @@ const OptimizedProfile = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="bg-secondary/50 rounded-lg p-3 text-center">
               <p className="text-sm text-muted-foreground">Balance</p>
-              <p className="font-semibold">1,245.78 SEI</p>
-            </div>
-            <div className="bg-secondary/50 rounded-lg p-3 text-center">
-              <p className="text-sm text-muted-foreground">Protected</p>
-              <p className="font-semibold">2 Active</p>
+              {isLoadingTokens ? (
+                <div className="flex flex-col items-center justify-center">
+                  <Skeleton className="h-6 w-24 mt-1 rounded-md" />
+                </div>
+              ) : idrxBalance ? (
+                <p className="font-semibold">
+                  {idrxBalance.value ? Number(idrxBalance.value) / 100 : 0} IDRX
+                </p>
+              ) : (
+                <p className="font-semibold">0 IDRX</p>
+              )}
             </div>
             <div className="bg-secondary/50 rounded-lg p-3 text-center">
               <p className="text-sm text-muted-foreground">Streams</p>
-              <p className="font-semibold">2 Active</p>
-            </div>
-            <div className="bg-secondary/50 rounded-lg p-3 text-center">
-              <p className="text-sm text-muted-foreground">Pools</p>
-              <p className="font-semibold">2 Active</p>
+              {isLoadingStreams ? (
+                <div className="flex flex-col items-center justify-center">
+                  <Skeleton className="h-6 w-16 mt-1 rounded-md" />
+                </div>
+              ) : (
+                <p className="font-semibold">{activeStreamsCount} Active</p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -197,21 +229,33 @@ const OptimizedProfile = () => {
 
       {/* Tabs for different sections - improved for mobile */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-4 w-full mb-4">
-          <TabsTrigger value="activity" className="flex flex-col items-center p-2 h-auto">
-            <Clock className="h-4 w-4 mb-1" />
+        <TabsList className="flex w-full mb-4 bg-black p-0 rounded-none border-b border-purple-800/50">
+          <TabsTrigger
+            value="activity"
+            className="flex-1 flex flex-col items-center justify-center py-2 h-auto rounded-none data-[state=active]:bg-transparent data-[state=active]:text-purple-500 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-purple-500"
+          >
+            <Clock className="h-5 w-5 mb-1" />
             <span className="text-xs">Activity</span>
           </TabsTrigger>
-          <TabsTrigger value="contacts" className="flex flex-col items-center p-2 h-auto">
-            <Users className="h-4 w-4 mb-1" />
+          <TabsTrigger
+            value="contacts"
+            className="flex-1 flex flex-col items-center justify-center py-2 h-auto rounded-none data-[state=active]:bg-transparent data-[state=active]:text-purple-500 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-purple-500"
+          >
+            <Users className="h-5 w-5 mb-1" />
             <span className="text-xs">Contacts</span>
           </TabsTrigger>
-          <TabsTrigger value="scheduled" className="flex flex-col items-center p-2 h-auto">
-            <CalendarClock className="h-4 w-4 mb-1" />
+          <TabsTrigger
+            value="scheduled"
+            className="flex-1 flex flex-col items-center justify-center py-2 h-auto rounded-none data-[state=active]:bg-transparent data-[state=active]:text-purple-500 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-purple-500"
+          >
+            <CalendarClock className="h-5 w-5 mb-1" />
             <span className="text-xs">Schedule</span>
           </TabsTrigger>
-          <TabsTrigger value="identity" className="flex flex-col items-center p-2 h-auto">
-            <UserPlus className="h-4 w-4 mb-1" />
+          <TabsTrigger
+            value="identity"
+            className="flex-1 flex flex-col items-center justify-center py-2 h-auto rounded-none data-[state=active]:bg-transparent data-[state=active]:text-purple-500 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-purple-500"
+          >
+            <UserPlus className="h-5 w-5 mb-1" />
             <span className="text-xs">Profile</span>
           </TabsTrigger>
         </TabsList>
@@ -265,7 +309,7 @@ const OptimizedProfile = () => {
       <Card>
         <CardContent className="p-0">
           {menuItems.map((item, index) => (
-            <div key={index}>
+            <div key={item.title}>
               <MenuItem item={item} />
               {index < menuItems.length - 1 && <Separator />}
             </div>

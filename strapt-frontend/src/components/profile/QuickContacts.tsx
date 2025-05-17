@@ -1,46 +1,94 @@
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UserPlus, Search, ArrowUpRight, Star, X } from 'lucide-react';
+import { UserPlus, Search, ArrowUpRight, Star, StarOff, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-// Mock contacts data
-const mockContacts = [
-  { id: '1', name: 'Sarah Miller', address: '0x1234...5678', username: '@sarah', avatar: '' },
-  { id: '2', name: 'Alex Rodriguez', address: '0x9876...5432', username: '@alex_r', avatar: '' },
-  { id: '3', name: 'Jamie Smith', address: '0x6543...2109', username: '@jamies', avatar: '' },
-  { id: '4', name: 'Taylor Wong', address: '0x8765...4321', username: '@taylor', avatar: '' },
-];
+import { useContacts } from '@/hooks/use-contacts';
+import { useToast } from '@/hooks/use-toast';
 
 const QuickContacts = () => {
-  const [contacts, setContacts] = useState(mockContacts);
+  const { contacts, isLoading, addContact, toggleFavorite, searchContacts } = useContacts();
   const [showAddContact, setShowAddContact] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
   const navigate = useNavigate();
 
-  const filteredContacts = contacts.filter(contact => 
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Form refs
+  const nameRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLInputElement>(null);
+
+  // Use the search function from the hook
+  const filteredContacts = searchQuery ? searchContacts(searchQuery) : contacts;
 
   const handleTransfer = (contactId: string) => {
-    // In a real app, this would pre-fill the transfer form with the contact's info
+    // Pre-fill the transfer form with the contact's info
     const contact = contacts.find(c => c.id === contactId);
     if (contact) {
-      navigate('/app/transfer', { 
-        state: { recipient: contact.address, username: contact.username } 
+      navigate('/app/transfer', {
+        state: { recipient: contact.address, username: contact.username }
       });
     }
   };
 
+  const handleToggleFavorite = (contactId: string) => {
+    toggleFavorite(contactId);
+    toast({
+      title: "Contact updated",
+      description: "Contact favorite status has been updated",
+      duration: 3000,
+    });
+  };
+
   const handleAddContact = (event: React.FormEvent) => {
     event.preventDefault();
-    // This would actually add the contact in a real app
+    setIsSubmitting(true);
+
+    // Get values from refs
+    const name = nameRef.current?.value || '';
+    const username = usernameRef.current?.value || '';
+    const address = addressRef.current?.value || '';
+
+    // Validate
+    if (!name || !username || !address) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all fields",
+        variant: "destructive",
+        duration: 3000,
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Add the contact
+    addContact({
+      name,
+      username,
+      address,
+      avatar: '',
+      isFavorite: false,
+      lastInteraction: new Date().toISOString()
+    });
+
+    // Reset form and close dialog
+    if (nameRef.current) nameRef.current.value = '';
+    if (usernameRef.current) usernameRef.current.value = '';
+    if (addressRef.current) addressRef.current.value = '';
+
+    toast({
+      title: "Contact added",
+      description: `${name} has been added to your contacts`,
+      duration: 3000,
+    });
+
+    setIsSubmitting(false);
     setShowAddContact(false);
   };
 
@@ -68,7 +116,24 @@ const QuickContacts = () => {
           </div>
 
           <div className="space-y-3">
-            {filteredContacts.length === 0 ? (
+            {isLoading ? (
+              // Loading state
+              Array.from({ length: 3 }).map((_, index) => (
+                <div key={`skeleton-contact-${index}-${Date.now()}`} className="flex items-center justify-between bg-secondary/30 rounded-lg p-3 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-muted" />
+                    <div>
+                      <div className="h-4 w-24 bg-muted rounded mb-2" />
+                      <div className="h-3 w-16 bg-muted rounded" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-8 w-8 rounded-md bg-muted" />
+                    <div className="h-8 w-8 rounded-md bg-muted" />
+                  </div>
+                </div>
+              ))
+            ) : filteredContacts.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">No contacts found</p>
             ) : (
               filteredContacts.map(contact => (
@@ -84,11 +149,21 @@ const QuickContacts = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Mark as favorite">
-                      <Star className="h-4 w-4" />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      title={contact.isFavorite ? "Remove from favorites" : "Mark as favorite"}
+                      onClick={() => handleToggleFavorite(contact.id)}
+                    >
+                      {contact.isFavorite ? (
+                        <Star className="h-4 w-4 text-yellow-500" />
+                      ) : (
+                        <StarOff className="h-4 w-4" />
+                      )}
                     </Button>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="h-8 w-8 p-0"
                       onClick={() => handleTransfer(contact.id)}
                       title="Send funds"
@@ -115,22 +190,31 @@ const QuickContacts = () => {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="name">Name</Label>
-                <Input id="name" placeholder="Contact name" />
+                <Input id="name" placeholder="Contact name" ref={nameRef} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="username">Username or ENS</Label>
-                <Input id="username" placeholder="@username or name.eth" />
+                <Input id="username" placeholder="@username or name.eth" ref={usernameRef} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="address">Wallet Address</Label>
-                <Input id="address" placeholder="0x..." />
+                <Input id="address" placeholder="0x..." ref={addressRef} />
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAddContact(false)}>
+              <Button type="button" variant="outline" onClick={() => setShowAddContact(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit">Add Contact</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Contact'
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

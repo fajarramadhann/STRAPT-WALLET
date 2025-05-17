@@ -32,13 +32,13 @@ interface TransferDetails {
 const standardizeClaimCode = (code: string): string => {
   // Trim any whitespace and ensure we have a valid string
   if (!code) return '';
-  
+
   // Remove any special formatting characters that might cause issues
   let formatted = code.trim();
-  
+
   // Log the processed code for debugging
   console.log(`Standardized claim code from [${code}] to [${formatted}], length: ${formatted.length}`);
-  
+
   return formatted;
 };
 
@@ -96,7 +96,7 @@ const Claims = () => {
   useEffect(() => {
     const id = searchParams.get('id');
     const code = searchParams.get('code');
-    
+
     if (id) {
       console.log(`Processing transfer ID from URL: ${id}, code present: ${!!code}`);
       // Standardize the claim code if present
@@ -140,27 +140,41 @@ const Claims = () => {
           setPasswordError('Claim code is required for this transfer');
           return false;
         }
-        
+
         // Ensure claim code is properly formatted
         const cleanPassword = standardizeClaimCode(password);
         console.log('Attempting to claim with password:', cleanPassword, 'length:', cleanPassword.length);
-        
+
         try {
           const success = await claimTransfer(transferId, cleanPassword);
           if (success) {
-            toast.success('Password-protected transfer claimed successfully!');
+            // Get transfer details to show the claimed amount in the success message
+            try {
+              const details = await getTransferDetails(transferId);
+              if (details) {
+                toast.success('Password-protected transfer claimed successfully!', {
+                  description: `You have received ${details.amount} ${details.tokenSymbol}`
+                });
+              } else {
+                toast.success('Password-protected transfer claimed successfully!');
+              }
+            } catch (e) {
+              // Fallback if we can't get details
+              toast.success('Password-protected transfer claimed successfully!');
+            }
+
             setShowPasswordDialog(false);
             setClaimCode('');
             // Refresh the list of pending claims
             // fetchPendingClaims();
             return true;
           }
-          
+
           setPasswordError('Failed to claim transfer. Please check the password.');
           return false;
         } catch (error) {
           console.error('Error claiming transfer with password:', error);
-          
+
           // Check for specific InvalidClaimCode error
           if (error.message?.includes('InvalidClaimCode') || error.message?.includes('invalid claim code')) {
             setPasswordError('Invalid password. Please double-check and try again.');
@@ -465,7 +479,7 @@ const Claims = () => {
     if (transferId.includes('/')) {
       cleanTransferId = transferId.split('/').pop() || '';
     }
-    
+
     // If the ID is a full URL, extract just the ID part
     if (cleanTransferId.includes('?id=')) {
       const parts = cleanTransferId.split('?id=');
@@ -490,7 +504,7 @@ const Claims = () => {
         } else {
           cleanClaimCode = claimCode;
         }
-        
+
         // Standardize the format
         cleanClaimCode = standardizeClaimCode(cleanClaimCode);
         console.log('Processed claim code:', cleanClaimCode);
@@ -523,12 +537,12 @@ const Claims = () => {
       if (isProtected) {
         // Set the values in the password dialog
         setManualTransferId(cleanTransferId);
-        
+
         // If we have a claim code, pre-fill it
         if (cleanClaimCode) {
           setManualClaimCode(cleanClaimCode);
           setShowPasswordDialog(true);
-          
+
           // Optionally: automatically submit if both id and code are provided via URL
           // This auto-submission can be enabled/disabled based on UX preferences
           if (cleanTransferId && cleanClaimCode) {
@@ -1028,7 +1042,21 @@ const Claims = () => {
                     toast.info('This transfer does not require a password. Claiming directly...');
                     const success = await claimTransfer(manualTransferId, '');
                     if (success) {
-                      toast.success('Transfer claimed successfully! (No password was required)');
+                      // Get transfer details to show the claimed amount in the success message
+                      try {
+                        const details = await getTransferDetails(manualTransferId);
+                        if (details) {
+                          toast.success('Transfer claimed successfully! (No password was required)', {
+                            description: `You have received ${details.amount} ${details.tokenSymbol}`
+                          });
+                        } else {
+                          toast.success('Transfer claimed successfully! (No password was required)');
+                        }
+                      } catch (e) {
+                        // Fallback if we can't get details
+                        toast.success('Transfer claimed successfully! (No password was required)');
+                      }
+
                       setShowManualClaimDialog(false);
                       setManualTransferId('');
                       setManualClaimCode('');

@@ -4,46 +4,58 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Link, ExternalLink, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Link, ExternalLink, ChevronRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-// Mock connected accounts
-const mockConnectedAccounts = [
-  { 
-    id: 'lens', 
-    name: 'Lens Protocol', 
-    handle: '@trustuser.lens', 
-    iconUrl: '', 
-    verified: true, 
-    provider: 'lens' 
-  },
-  { 
-    id: 'farcaster', 
-    name: 'Farcaster', 
-    handle: '@trustuser', 
-    iconUrl: '', 
-    verified: false,
-    provider: 'farcaster' 
-  }
-];
-
-// Available identity providers
-const identityProviders = [
-  { id: 'lens', name: 'Lens Protocol', description: 'Social media platform built on blockchain' },
-  { id: 'farcaster', name: 'Farcaster', description: 'Decentralized social network' },
-  { id: 'ceramic', name: 'Ceramic Network', description: 'Decentralized data network for Web3' },
-  { id: 'ens', name: 'Ethereum Name Service', description: 'Decentralized naming for wallets, websites, & more' },
-];
+import { useDecentralizedIdentity } from '@/hooks/use-decentralized-identity';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const DecentralizedIdentity = () => {
-  const [connectedAccounts, setConnectedAccounts] = useState(mockConnectedAccounts);
+  const {
+    connectedAccounts,
+    isLoading,
+    connectAccount,
+    disconnectAccount,
+    getAvailableProviders,
+    identityProviders
+  } = useDecentralizedIdentity();
+
+  const [isConnecting, setIsConnecting] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleConnect = (providerId: string) => {
-    // In a real app, this would initiate an authentication flow
+  const handleConnect = async (providerId: string) => {
+    setIsConnecting(providerId);
+
+    try {
+      // Simulate a connection delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Connect the account
+      connectAccount(providerId);
+
+      toast({
+        title: "Connection successful",
+        description: `Connected to ${identityProviders.find(p => p.id === providerId)?.name}`,
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: "Connection failed",
+        description: "There was an error connecting to the provider",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setIsConnecting(null);
+    }
+  };
+
+  const handleDisconnect = (accountId: string) => {
+    disconnectAccount(accountId);
+
     toast({
-      title: "Connection initiated",
-      description: `Connecting to ${identityProviders.find(p => p.id === providerId)?.name}...`,
+      title: "Account disconnected",
+      description: "The account has been disconnected",
+      duration: 3000,
     });
   };
 
@@ -61,7 +73,23 @@ const DecentralizedIdentity = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {connectedAccounts.length === 0 ? (
+          {isLoading ? (
+            // Loading state
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div key={`skeleton-identity-${index}-${Date.now()}`} className="flex items-center justify-between bg-secondary/30 rounded-lg p-3 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div>
+                      <Skeleton className="h-4 w-24 mb-2" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+              ))}
+            </div>
+          ) : connectedAccounts.length === 0 ? (
             <p className="text-center text-muted-foreground py-4">No connected identities</p>
           ) : (
             <div className="space-y-3">
@@ -82,9 +110,29 @@ const DecentralizedIdentity = () => {
                       <p className="text-sm text-muted-foreground">{account.handle}</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      title="View profile"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-100"
+                      title="Disconnect"
+                      onClick={() => handleDisconnect(account.id)}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" role="img" aria-label="Disconnect">
+                        <title>Disconnect</title>
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -98,10 +146,25 @@ const DecentralizedIdentity = () => {
           <CardDescription>Connect with more decentralized identity providers</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {identityProviders
-              .filter(provider => !connectedAccounts.some(a => a.id === provider.id))
-              .map(provider => (
+          {isLoading ? (
+            // Loading state
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div key={`skeleton-provider-${index}-${Date.now()}`} className="flex items-center justify-between bg-secondary/30 rounded-lg p-3 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div>
+                      <Skeleton className="h-4 w-24 mb-2" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-9 w-24 rounded-md" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {getAvailableProviders().map(provider => (
                 <div key={provider.id} className="flex items-center justify-between bg-secondary/30 rounded-lg p-3">
                   <div className="flex items-center gap-3">
                     <Avatar>
@@ -112,16 +175,29 @@ const DecentralizedIdentity = () => {
                       <p className="text-sm text-muted-foreground">{provider.description}</p>
                     </div>
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => handleConnect(provider.id)}
+                    disabled={isConnecting === provider.id}
                   >
-                    <Link className="h-4 w-4 mr-1" /> Connect
+                    {isConnecting === provider.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Link className="h-4 w-4 mr-1" /> Connect
+                      </>
+                    )}
                   </Button>
                 </div>
               ))}
-          </div>
+              {getAvailableProviders().length === 0 && (
+                <p className="text-center text-muted-foreground py-4">No more providers available to connect</p>
+              )}
+            </div>
+          )}
         </CardContent>
         <CardFooter>
           <Button variant="link" className="mx-auto">

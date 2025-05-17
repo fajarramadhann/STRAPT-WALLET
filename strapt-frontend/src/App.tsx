@@ -11,6 +11,7 @@ import { XellarProvider } from './providers/XellarProvider';
 import { AppStateProvider } from './state/AppStateContext';
 import { TransferStateProvider } from './state/TransferStateContext';
 import { DataProvider } from './providers/DataProvider';
+import TransactionDetector from './components/TransactionDetector';
 
 // Import WalletCheck eagerly as it's needed for route protection
 import WalletCheck from './components/WalletCheck';
@@ -54,6 +55,7 @@ const App = () => {
               <Sonner position="top-right" />
               <BrowserRouter>
                 <DataProvider>
+                <TransactionDetector>
                 <Routes>
                   <Route path="/" element={
                     <Suspense fallback={<PageLoading />}>
@@ -64,11 +66,7 @@ const App = () => {
                   {/* Protected routes require wallet connection */}
                   <Route element={<WalletCheck />}>
                     <Route path="app" element={isMobile ? <Layout /> : <DesktopLayout />}>
-                      <Route index element={
-                        <Suspense fallback={<PageLoading />}>
-                          <Home />
-                        </Suspense>
-                      } />
+                      <Route index element={<Home />} />
                       <Route path="transfer" element={
                         <Suspense fallback={<PageLoading />}>
                           <Transfer />
@@ -132,6 +130,7 @@ const App = () => {
                     </Suspense>
                   } />
                 </Routes>
+                </TransactionDetector>
                 </DataProvider>
               </BrowserRouter>
               </TooltipProvider>

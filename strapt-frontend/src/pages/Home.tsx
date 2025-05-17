@@ -29,8 +29,10 @@ import { useTokenBalances } from "@/hooks/use-token-balances";
 import { useChainId, useConfig } from "wagmi";
 import { formatUnits } from "viem";
 import { liskSepolia, baseSepolia } from "viem/chains";
-import { Loading } from "@/components/ui/loading";
 import { toast } from "sonner";
+import BalanceSkeleton from "@/components/skeletons/BalanceSkeleton";
+import ReceivedStatsSkeleton from "@/components/skeletons/ReceivedStatsSkeleton";
+import ActivitySkeleton from "@/components/skeletons/ActivitySkeleton";
 
 const Home = () => {
   const { isConnected, address } = useXellarWallet();
@@ -120,83 +122,68 @@ const Home = () => {
   return (
     <div className="space-y-6">
       {/* Wallet Balance */}
-      <Card className="overflow-hidden dark:border-primary/20 border-primary/30">
-        <CardHeader className="bg-gradient-to-r from-primary to-accent text-white">
-          <CardTitle className="text-xl text-white flex items-center justify-between">
-            Your Balance
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-white h-7 hover:bg-white/20"
-              onClick={() => setShowQR(true)}
-            >
-              <QrCode className="h-4 w-4 mr-1" /> Receive
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="text-center">
-            {!isConnected ? (
-              <div className="text-sm text-muted-foreground">
-                Connect wallet to view balance
-              </div>
-            ) : isLoading ? (
-              <Loading size="sm" text="Fetching balance..." />
-            ) : tokens.length > 0 ? (
-              <div className="space-y-4">
-                {/* USDC Balance */}
-                {/* {usdcBalance && (
-                  <div className="border-b pb-3">
-                    <div className="text-2xl font-bold mb-1">
-                      {usdcBalance.formatted} {usdcBalance.symbol}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      ≈ ${Number(usdcBalance.formatted).toFixed(2)} USD
-                    </div>
-                  </div>
-                )} */}
-
-                {/* IDRX Balance */}
-                {idrxBalance && (
-                  <div>
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <img
-                        src="/IDRX BLUE COIN.svg"
-                        alt="IDRX"
-                        className="w-8 h-8"
-                      />
-                      <div className="text-2xl font-bold">
-                        {Number.parseInt(idrxBalance.formatted)} {idrxBalance.symbol}
+      {isLoading ? (
+        <BalanceSkeleton />
+      ) : (
+        <Card className="overflow-hidden dark:border-primary/20 border-primary/30">
+          <CardHeader className="bg-gradient-to-r from-primary to-accent text-white">
+            <CardTitle className="text-xl text-white flex items-center justify-between">
+              Your Balance
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-white h-7 hover:bg-white/20"
+                onClick={() => setShowQR(true)}
+              >
+                <QrCode className="h-4 w-4 mr-1" /> Receive
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              {!isConnected ? (
+                <div className="text-sm text-muted-foreground">
+                  Connect wallet to view balance
+                </div>
+              ) : tokens.length > 0 ? (
+                <div className="space-y-4">
+                  {/* IDRX Balance */}
+                  {idrxBalance && (
+                    <div>
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <img
+                          src="/IDRX BLUE COIN.svg"
+                          alt="IDRX"
+                          className="w-8 h-8"
+                        />
+                        <div className="text-2xl font-bold">
+                          {Number.parseInt(idrxBalance.value ? idrxBalance.value.toString() : "0")} {idrxBalance.symbol}
+                        </div>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        ≈ ${(Number.parseInt(idrxBalance.value ? idrxBalance.value.toString() : "0") * prices.idrx).toFixed(2)} USD
                       </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      ≈ ${(Number.parseInt(idrxBalance.formatted) * prices.idrx).toFixed(2)} USD
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Loading size="sm" text="Connecting..." />
-            )}
-          </div>
-          <div className="flex justify-center gap-4 mt-4">
-          {/* <Button
-              variant="secondary"
-              className="flex items-center gap-2 rounded-xl"
-              onClick={() => navigate("/app/transfer")}
-            >
-              <ArrowUp className="h-4 w-4" /> Send
-            </Button> */}
-            <Button
-              variant="secondary"
-              className="flex items-center gap-2 rounded-xl"
-              onClick={() => navigate("/app/claims")}
-            >
-              <ArrowDown className="h-4 w-4" /> Claims
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  No tokens found
+                </div>
+              )}
+            </div>
+            <div className="flex justify-center gap-4 mt-4">
+              <Button
+                variant="secondary"
+                className="flex items-center gap-2 rounded-xl"
+                onClick={() => navigate("/app/claims")}
+              >
+                <ArrowDown className="h-4 w-4" /> Claims
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <div className="space-y-3">
@@ -224,53 +211,61 @@ const Home = () => {
       </div>
 
       {/* Received Stats */}
-      <ReceivedStats
-        totalReceived={receivedData.totalReceived}
-        recentActivity={receivedData.recentActivity}
-      />
+      {isLoading ? (
+        <ReceivedStatsSkeleton />
+      ) : (
+        <ReceivedStats
+          totalReceived={receivedData.totalReceived}
+          recentActivity={receivedData.recentActivity}
+        />
+      )}
 
       {/* Recent Activity */}
-      <div className="space-y-3">
-        <h2 className="font-semibold text-lg">Recent Activity <span className="ml-3 text-xs text-amber-500 font-normal">(dummy data)</span></h2>
-        <Card className="dark:border-primary/20 border-primary/30">
-          <CardContent className="p-0">
-            <ActivityItem
-              type="sent"
-              title="Sent to Mark"
-              amount="-125 IDRX"
-              date="2 hrs ago"
-              recipient="@mark.strapt"
-            />
-            <ActivityItem
-              type="pending"
-              title="Protected Transfer"
-              amount="50 IDRX"
-              date="5 hrs ago"
-              recipient="@alice.strapt"
-            />
-            <ActivityItem
-              type="received"
-              title="Received from Stream"
-              amount="+10.5 IDRX"
-              date="8 hrs ago"
-            />
-            <ActivityItem
-              type="sent"
-              title="Pool Contribution"
-              amount="-75 IDRX"
-              date="1 day ago"
-              recipient="Trip Fund"
-            />
-            <ActivityItem
-              type="received"
-              title="Received from John"
-              amount="+200 IDRX"
-              date="2 days ago"
-              recipient="@john.strapt"
-            />
-          </CardContent>
-        </Card>
-      </div>
+      {isLoading ? (
+        <ActivitySkeleton />
+      ) : (
+        <div className="space-y-3">
+          <h2 className="font-semibold text-lg">Recent Activity <span className="ml-3 text-xs text-amber-500 font-normal">(dummy data)</span></h2>
+          <Card className="dark:border-primary/20 border-primary/30">
+            <CardContent className="p-0">
+              <ActivityItem
+                type="sent"
+                title="Sent to Mark"
+                amount="-125 IDRX"
+                date="2 hrs ago"
+                recipient="@mark.strapt"
+              />
+              <ActivityItem
+                type="pending"
+                title="Protected Transfer"
+                amount="50 IDRX"
+                date="5 hrs ago"
+                recipient="@alice.strapt"
+              />
+              <ActivityItem
+                type="received"
+                title="Received from Stream"
+                amount="+10.5 IDRX"
+                date="8 hrs ago"
+              />
+              <ActivityItem
+                type="sent"
+                title="Pool Contribution"
+                amount="-75 IDRX"
+                date="1 day ago"
+                recipient="Trip Fund"
+              />
+              <ActivityItem
+                type="received"
+                title="Received from John"
+                amount="+200 IDRX"
+                date="2 days ago"
+                recipient="@john.strapt"
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* QR Code Dialog */}
       <Dialog open={showQR} onOpenChange={setShowQR}>
