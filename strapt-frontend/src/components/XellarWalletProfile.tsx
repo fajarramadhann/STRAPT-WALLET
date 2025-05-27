@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { useConfig, useChainId, useSwitchChain, useBalance } from 'wagmi';
 import { polygonAmoy, liskSepolia, baseSepolia } from 'viem/chains';
 import InfoTooltip from '@/components/InfoTooltip';
+import { formatBalanceWithoutDecimals } from '@/utils/format-utils';
 
 const XellarWalletProfile = () => {
   const { isConnected, address, disconnectWallet, connectWallet } = useXellarWallet();
@@ -130,7 +131,7 @@ const XellarWalletProfile = () => {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{truncatedAddress}</p>
             <div className="flex items-center gap-1 text-xs leading-none text-muted-foreground">
-              <span>{balance && `${Number.parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}`}</span>
+              <span>{balance && formatBalanceWithoutDecimals(balance.value, balance.symbol)}</span>
               <InfoTooltip
                 content={
                   <div>

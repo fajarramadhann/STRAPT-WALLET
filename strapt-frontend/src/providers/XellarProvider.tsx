@@ -13,6 +13,8 @@ export const config = defaultConfig({
   xellarAppId,
   xellarEnv: "production",
   chains: [liskSepolia, baseSepolia],
+  enableWalletConnect: true,
+  enableXellarWallet: true,
 }) as Config;
 
 const queryClient = new QueryClient();
@@ -21,7 +23,18 @@ export const XellarProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <XellarKitProvider theme={darkTheme}>{children}</XellarKitProvider>
+        <XellarKitProvider 
+          theme={darkTheme}
+          config={{
+            appName: "STRAPT",
+            xellarAppId,
+            xellarEnv: "production",
+            enableWalletConnect: true,
+            enableXellarWallet: true,
+          }}
+        >
+          {children}
+        </XellarKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

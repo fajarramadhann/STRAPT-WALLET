@@ -45,20 +45,18 @@ contract PaymentStream is ReentrancyGuard, Ownable {
         Milestone[] milestones; // Array of milestones
     }
 
-    /// @notice Fee collector address
-    address public feeCollector;
+    address public feeCollector; // Fee collector address
 
-    /// @notice Fee in basis points (1/100 of a percent, e.g. 20 = 0.2%)
-    uint16 public feeInBasisPoints;
+    uint16 public feeInBasisPoints; // Fee in basis points (1/100 of a percent)
 
-    /// @notice Maximum fee in basis points (5%)
-    uint16 public constant MAX_FEE = 500;
+    uint16 public constant MAX_FEE = 100; // Maximum fee in basis points (10 = 10%)
 
-    /// @notice Mapping of stream ID to stream
-    mapping(bytes32 => Stream) public streams;
+    uint16 public constant BASIS_POINTS_DENOMINATOR = 10000; // Standard basis points denominator (100% = 10000)
 
-    /// @notice Mapping of token address to whether it's supported
-    mapping(address => bool) public supportedTokens;
+    uint16 public constant PERCENTAGE_DENOMINATOR = 100; // Standard percentage denominator (100% = 100)
+
+    mapping(bytes32 => Stream) public streams; // Mapping of stream ID to stream
+    mapping(address => bool) public supportedTokens; // Mapping of token address to whether it's supported
 
     /// @notice Event emitted when a stream is created
     event StreamCreated(
@@ -113,7 +111,6 @@ contract PaymentStream is ReentrancyGuard, Ownable {
         uint256 timestamp
     );
 
-    /// @notice Custom errors for gas optimization
     error InvalidTokenAddress();
     error InvalidAmount();
     error InvalidDuration();
@@ -168,6 +165,7 @@ contract PaymentStream is ReentrancyGuard, Ownable {
     function setTokenSupport(address tokenAddress, bool isSupported) external onlyOwner {
         supportedTokens[tokenAddress] = isSupported;
     }
+
     /**
      * @notice Helper function to create milestone array
      * @param milestonePercentages Array of milestone percentages
@@ -178,10 +176,10 @@ contract PaymentStream is ReentrancyGuard, Ownable {
         uint256[] calldata milestonePercentages,
         string[] calldata milestoneDescriptions
     ) private pure returns (Milestone[] memory) {
-        Milestone[] memory streamMilestones = new Milestone[](milestonePercentages.length);
+        Milestone[] memory streamMilestones = new Milestone[](milestonePercentages.length); // Create an empty array of Milestone structs
 
-        for (uint256 i = 0; i < milestonePercentages.length; i++) {
-            if (milestonePercentages[i] == 0 || milestonePercentages[i] >= 100) {
+        for (uint256 i = 0; i < milestonePercentages.length; i++) { // if i < length of milestonePercentages array, loop i until i = length of milestonePercentages array
+            if (milestonePercentages[i] == 0 || milestonePercentages[i] >= PERCENTAGE_DENOMINATOR) {
                 revert InvalidMilestonePercentage();
             }
             streamMilestones[i] = Milestone({
@@ -246,7 +244,7 @@ contract PaymentStream is ReentrancyGuard, Ownable {
         if (milestonePercentages.length != milestoneDescriptions.length) revert InvalidMilestonePercentage();
 
         // Calculate fee
-        uint256 fee = (amount * feeInBasisPoints) / 10000;
+        uint256 fee = (amount * feeInBasisPoints) / BASIS_POINTS_DENOMINATOR;
         uint256 transferAmount = amount - fee;
 
         // Generate stream ID
@@ -444,7 +442,7 @@ contract PaymentStream is ReentrancyGuard, Ownable {
 
         // Calculate milestone amount
         uint256 milestonePercentage = stream.milestones[milestoneIndex].percentage;
-        uint256 milestoneAmount = (stream.amount * milestonePercentage) / 100;
+        uint256 milestoneAmount = (stream.amount * milestonePercentage) / PERCENTAGE_DENOMINATOR; // Milestone percentages are in whole percent (1-99)
 
         // Ensure we don't exceed the total amount
         uint256 currentStreamed = stream.streamed;

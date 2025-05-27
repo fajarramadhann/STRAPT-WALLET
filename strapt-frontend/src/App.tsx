@@ -27,14 +27,17 @@ const Transfer = lazy(() => import("./pages/Transfer"));
 const Streams = lazy(() => import("./pages/OptimizedStreams"));
 const AutoRefreshStreams = lazy(() => import("./pages/AutoRefreshStreams"));
 const Pools = lazy(() => import("./pages/Pools"));
-const StraptDrop = lazy(() => import("./pages/StraptDrop"));
-const StraptDropClaim = lazy(() => import("./pages/StraptDropClaim"));
+const StraptDrop = lazy(() => import("./pages/EnhancedStraptDrop"));
+const StraptDropClaim = lazy(() => import("./pages/EnhancedStraptDropClaim"));
 const MyDrops = lazy(() => import("./pages/OptimizedMyDrops"));
 const Profile = lazy(() => import("./pages/OptimizedProfile"));
 const Claims = lazy(() => import("./pages/Claims"));
 const Savings = lazy(() => import("./pages/Savings"));
 const ComingSoon = lazy(() => import("./pages/ComingSoon"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Lazy load frame components
+const FrameRouter = lazy(() => import("./components/frames/FrameRouter"));
 
 const App = () => {
   const isMobile = useIsMobile();
@@ -63,6 +66,19 @@ const App = () => {
                     </Suspense>
                   } />
                   <Route path="claim/:id?" element={<Navigate to="/app/claims" replace />} />
+
+                  {/* Frame routes - accessible without wallet connection */}
+                  <Route path="/frames/*" element={
+                    <Suspense fallback={<PageLoading />}>
+                      <FrameRouter />
+                    </Suspense>
+                  } />
+                  <Route path="/frame/*" element={
+                    <Suspense fallback={<PageLoading />}>
+                      <FrameRouter />
+                    </Suspense>
+                  } />
+
                   {/* Protected routes require wallet connection */}
                   <Route element={<WalletCheck />}>
                     <Route path="app" element={isMobile ? <Layout /> : <DesktopLayout />}>
@@ -97,7 +113,7 @@ const App = () => {
                           <StraptDrop />
                         </Suspense>
                       } />
-                      <Route path="strapt-drop/claim" element={
+                      <Route path="strapt-drop/claim/:id?" element={
                         <Suspense fallback={<PageLoading />}>
                           <StraptDropClaim />
                         </Suspense>

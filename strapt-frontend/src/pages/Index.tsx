@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { ArrowRight, Shield, BarChart2, Users, MessageCircle, CheckCircle, Zap, Smartphone, Droplets, Wallet } from 'lucide-react';
+import { ArrowRight, Shield, BarChart2, Users, MessageCircle, CheckCircle, Zap, Smartphone, Droplets, Wallet, Loader2 } from 'lucide-react';
 import { useAccount } from 'wagmi';
-import { ConnectButton } from '@xellar/kit';
+import { useXellarWallet } from '@/hooks/use-xellar-wallet';
 
 const Index = () => {
-  const isMobile = useIsMobile();
   const { isConnected } = useAccount();
+  const { connectWallet } = useXellarWallet();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -19,14 +18,26 @@ const Index = () => {
     }
   }, [isConnected, navigate]);
 
-  const handleLaunchApp = () => {
+  const handleLaunchApp = async () => {
+    console.log('Launch App clicked, isConnected:', isConnected);
     if (isConnected) {
+      console.log('Already connected, navigating to /app');
       navigate('/app');
     } else {
+      console.log('Not connected, attempting to connect wallet');
       setIsLoading(true);
-      // The ConnectButton will handle the wallet connection
-      // The useEffect will handle navigation after successful connection
-      setTimeout(() => setIsLoading(false), 500);
+      try {
+        // Open Xellar wallet connection modal
+        console.log('Calling connectWallet()');
+        await connectWallet();
+        console.log('connectWallet() completed');
+        // The useEffect will handle navigation after successful connection
+      } catch (error) {
+        console.error("Error connecting wallet:", error);
+        // You might want to show a toast or error message to the user here
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -40,8 +51,22 @@ const Index = () => {
             <div className="hidden md:flex items-center space-x-6">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
               <a href="#why" className="text-muted-foreground hover:text-foreground transition-colors">Why STRAPT</a>
+              <a href="#showcase" className="text-muted-foreground hover:text-foreground transition-colors">Showcase</a>
             </div>
-            <ConnectButton label="Launch App" className="md:hidden" />
+            <Button
+              onClick={handleLaunchApp}
+              className="md:hidden"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                "Launch App"
+              )}
+            </Button>
           </div>
         </div>
       </header>
@@ -55,15 +80,24 @@ const Index = () => {
                 Send It, Stream It, STRAPT It.
               </h1>
               <p className="text-lg text-muted-foreground mb-8 max-w-2xl">
-                Trustless crypto transfers and smart payments with IDRX.
+                The fastest way to move crypto — no addresses, no stress. Powered by IDRX.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start mb-8">
-                <ConnectButton
-                  label={<>Launch App <ArrowRight className="ml-2 h-4 w-4" /></>}
+                <Button
+                  onClick={handleLaunchApp}
                   className="w-full sm:w-auto text-base font-medium"
-                />
-                <Button variant="outline" className="w-full sm:w-auto text-base font-medium">
-                  Learn How It Works
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      Launch App <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -72,54 +106,16 @@ const Index = () => {
             <div className="mx-auto max-w-xs md:max-w-sm md:w-1/2">
               <div className="relative">
                 <div className="rounded-[3rem] bg-card p-4 overflow-hidden border-8 border-foreground/10 shadow-xl">
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl" />
-                  <div className="rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 aspect-[9/19]">
-                    <div className="p-4">
-                      <div className="flex justify-between items-center mb-6">
-                        <div className="w-2/3">
-                          <div className="h-6 bg-white/20 rounded-lg mb-2" />
-                          <div className="h-4 bg-white/10 rounded-lg w-2/3" />
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-white/20" />
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2 mb-6">
-                        <div className="h-20 rounded-2xl bg-white/10 flex items-center justify-center">
-                          <div className="h-8 w-8 rounded-full bg-accent/50"/>
-                        </div>
-                        <div className="h-20 rounded-2xl bg-white/10 flex items-center justify-center">
-                          <div className="h-8 w-8 rounded-full bg-primary/50" />
-                        </div>
-                        <div className="h-20 rounded-2xl bg-white/10 flex items-center justify-center">
-                          <div className="h-8 w-8 rounded-full bg-white/20" />
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="h-16 rounded-xl bg-white/10 px-3 py-2 flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-white/20 mr-2"></div>
-                            <div>
-                              <div className="h-3 w-16 bg-white/20 rounded mb-1"></div>
-                              <div className="h-2 w-12 bg-white/10 rounded"></div>
-                            </div>
-                          </div>
-                          <div className="h-4 w-12 bg-accent/50 rounded-lg"></div>
-                        </div>
-                        <div className="h-16 rounded-xl bg-white/10 px-3 py-2 flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-white/20 mr-2"></div>
-                            <div>
-                              <div className="h-3 w-16 bg-white/20 rounded mb-1"></div>
-                              <div className="h-2 w-12 bg-white/10 rounded"></div>
-                            </div>
-                          </div>
-                          <div className="h-4 w-12 bg-primary/50 rounded-lg"></div>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl z-10" />
+                  <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 aspect-[9/19]">
+                    <img
+                      src="/home-mobile.png"
+                      alt="STRAPT Home Dashboard"
+                      className="w-full h-auto"
+                    />
                   </div>
                 </div>
+                <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-gradient-to-br from-primary to-accent rounded-full blur-xl opacity-30" />
               </div>
             </div>
           </div>
@@ -127,58 +123,180 @@ const Index = () => {
 
         {/* Features Section */}
         <div className="max-w-7xl mx-auto mt-24" id="features">
-          <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center">Features</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6">
-            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-card hover:shadow-md transition-all">
-              <Shield className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-medium">Protected Transfers</h3>
+          <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center gradient-text">Features</h2>
+          <p className="text-center text-muted-foreground max-w-2xl mx-auto mb-10">
+            STRAPT offers a comprehensive suite of financial tools designed for the modern crypto user.
+          </p>
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-6">
+            <div className="flex flex-col items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="font-semibold text-base mb-2">Protected Transfers</h3>
+              <p className="text-sm text-muted-foreground">Send crypto with passwords or QR links — no need to drop addresses ever again. Perfect for secure person-to-person payments.</p>
             </div>
-            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-card hover:shadow-md transition-all">
-              <BarChart2 className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-medium">Streaming Payments</h3>
+            <div className="flex flex-col items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <BarChart2 className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="font-semibold text-base mb-2">Streaming Payments</h3>
+              <p className="text-sm text-muted-foreground">Automate salaries, subscriptions, and project payouts, right from your wallet. Set it up once and let the funds flow continuously.</p>
             </div>
-            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-card hover:shadow-md transition-all">
-              <Users className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-medium">Group Pools</h3>
+            <div className="flex flex-col items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Users className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="font-semibold text-base mb-2">Group Pools</h3>
+              <p className="text-sm text-muted-foreground">Easily collect, split, or manage pooled funds with friends or teams. Perfect for group expenses, projects, or community treasuries.</p>
             </div>
-            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-card hover:shadow-md transition-all">
-              <Wallet className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-medium">Crypto Savings</h3>
+            <div className="flex flex-col items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Wallet className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="font-semibold text-base mb-2">Crypto Savings</h3>
+              <p className="text-sm text-muted-foreground">Set targets, earn while you wait. Your DeFi piggy bank, simplified. Create savings goals and watch your assets grow over time.</p>
             </div>
-            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-card hover:shadow-md transition-all">
-              <Droplets className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-medium">Token Faucet</h3>
+            <div className="flex flex-col items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Droplets className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="font-semibold text-base mb-2">Token Faucet</h3>
+              <p className="text-sm text-muted-foreground">No IDRX? No problem. Grab free tokens and start exploring instantly. Our faucet provides the tokens you need to test all features.</p>
             </div>
-            <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-card hover:shadow-md transition-all">
-              <MessageCircle className="h-8 w-8 text-primary mb-2" />
-              <h3 className="font-medium">Telegram Mini App</h3>
+            <div className="flex flex-col items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <MessageCircle className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="font-semibold text-base mb-2">Mini App</h3>
+              <p className="text-sm text-muted-foreground">Coming soon: Send and receive payments directly from your Telegram chats. Seamless integration with your favorite messaging platform.</p>
             </div>
           </div>
         </div>
 
         {/* Why STRAPT Section */}
         <div className="max-w-7xl mx-auto mt-24" id="why">
-          <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center">Why STRAPT?</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center gradient-text">Why STRAPT?</h2>
           <div className="md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="flex items-start p-6 rounded-2xl bg-card mb-4 md:mb-0">
-              <CheckCircle className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
+            <div className="flex items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg transition-all duration-300 mb-4 md:mb-0">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 flex-shrink-0">
+                <CheckCircle className="h-5 w-5 text-primary" />
+              </div>
               <div>
-                <h3 className="font-medium mb-2">No scams, no stress</h3>
-                <p className="text-muted-foreground">Built-in protections ensure your crypto arrives safely to its destination.</p>
+                <h3 className="font-semibold mb-2">No scams, no stress</h3>
+                <p className="text-sm text-muted-foreground">Built-in protections ensure your crypto arrives safely to its destination.</p>
               </div>
             </div>
-            <div className="flex items-start p-6 rounded-2xl bg-card mb-4 md:mb-0">
-              <Zap className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
+            <div className="flex items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg transition-all duration-300 mb-4 md:mb-0">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 flex-shrink-0">
+                <Zap className="h-5 w-5 text-primary" />
+              </div>
               <div>
-                <h3 className="font-medium mb-2">Easy as Venmo, secure as blockchain</h3>
-                <p className="text-muted-foreground">Familiar payment experience, but with the security of Web3.</p>
+                <h3 className="font-semibold mb-2">Easy as Venmo, secure as blockchain</h3>
+                <p className="text-sm text-muted-foreground">Familiar payment experience, but with the security of Web3.</p>
               </div>
             </div>
-            <div className="flex items-start p-6 rounded-2xl bg-card mb-4 md:mb-0">
-              <Smartphone className="h-6 w-6 text-primary mr-4 mt-1 flex-shrink-0" />
+            <div className="flex items-start p-6 rounded-2xl bg-card border border-primary/10 hover:border-primary/30 hover:shadow-lg transition-all duration-300 mb-4 md:mb-0">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 flex-shrink-0">
+                <Smartphone className="h-5 w-5 text-primary" />
+              </div>
               <div>
-                <h3 className="font-medium mb-2">Mobile-first & responsive design</h3>
-                <p className="text-muted-foreground">Optimized for smartphones and desktops with intuitive flows.</p>
+                <h3 className="font-semibold mb-2">Mobile-first & responsive design</h3>
+                <p className="text-sm text-muted-foreground">Optimized for smartphones and desktops with intuitive flows.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* App Showcase Section */}
+        <div className="max-w-7xl mx-auto mt-24 px-4" id="showcase">
+          <div className="mb-12">
+            <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center gradient-text">Experience STRAPT</h2>
+            <p className="text-center text-muted-foreground max-w-2xl mx-auto">
+              Explore our intuitive interface designed for seamless crypto transactions
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center justify-center">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 lg:gap-12 max-w-6xl mx-auto">
+              {/* Phone Mockup 1 - Transfer */}
+              <div className="flex flex-col items-center">
+                <div className="mb-4 text-center">
+                  <h3 className="font-medium text-primary">Protected Transfers</h3>
+                </div>
+
+                <div className="relative mx-auto hover:-translate-y-2 transition-transform duration-300">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30 rounded-[2.5rem] blur-xl opacity-30 transform -rotate-6" />
+                  <div className="relative rounded-[2.5rem] border-8 border-foreground/10 shadow-xl overflow-hidden bg-card">
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl z-10" />
+                    <img
+                      src="/transfer-mobile.png"
+                      alt="STRAPT Transfer Interface"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone Mockup 2 - Home */}
+              <div className="flex flex-col items-center">
+                <div className="mb-4 text-center">
+                  <h3 className="font-medium text-primary">Home Dashboard</h3>
+                </div>
+
+                <div className="relative mx-auto hover:-translate-y-2 transition-transform duration-300">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30 rounded-[2.5rem] blur-xl opacity-30 transform rotate-3" />
+                  <div className="relative rounded-[2.5rem] border-8 border-foreground/10 shadow-xl overflow-hidden bg-card">
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl z-10" />
+                    <img
+                      src="/home-mobile.png"
+                      alt="STRAPT Home Dashboard"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone Mockup 3 - STRAPT Drop (moved to center) */}
+              <div className="flex flex-col items-center">
+                <div className="mb-4 text-center">
+                  <div className="flex items-center justify-center">
+                    <h3 className="font-bold text-lg text-primary">STRAPT Drop</h3>
+                    <div className="ml-2 bg-gradient-to-r from-primary to-accent text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      Featured
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative mx-auto hover:-translate-y-2 transition-transform duration-300">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-accent/40 rounded-[2.5rem] blur-xl opacity-40" />
+                  <div className="relative rounded-[2.5rem] border-8 border-foreground/10 shadow-xl overflow-hidden bg-card">
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl z-10" />
+                    <img
+                      src="/drop-mobile.png"
+                      alt="STRAPT Drop Interface"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone Mockup 4 - Streams */}
+              <div className="flex flex-col items-center">
+                <div className="mb-4 text-center">
+                  <h3 className="font-medium text-accent">Payment Streams</h3>
+                </div>
+
+                <div className="relative mx-auto hover:-translate-y-2 transition-transform duration-300">
+                  <div className="absolute inset-0 bg-gradient-to-br from-accent/30 to-primary/30 rounded-[2.5rem] blur-xl opacity-30 transform rotate-6" />
+                  <div className="relative rounded-[2.5rem] border-8 border-foreground/10 shadow-xl overflow-hidden bg-card">
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1/3 h-6 bg-foreground/10 rounded-b-xl z-10" />
+                    <img
+                      src="/payment-streams-mobile.png"
+                      alt="STRAPT Payment Streams Interface"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -186,11 +304,27 @@ const Index = () => {
 
         {/* CTA Section */}
         <div className="max-w-4xl mx-auto mt-24 text-center">
-          <div className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-2xl p-8 md:p-12">
-            <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to get started?</h2>
-            <p className="text-lg mb-6 max-w-2xl mx-auto">
-              Join thousands of users who are already experiencing the future of crypto payments.
+          <div className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-2xl p-8 md:p-12 border border-primary/10 shadow-lg">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 gradient-text">Ready to get started?</h2>
+            <p className="text-lg mb-8 max-w-2xl mx-auto text-muted-foreground">
+              Thousands already STRAPT their crypto — it's time to send smarter.
             </p>
+            <Button
+              onClick={handleLaunchApp}
+              className="w-full sm:w-auto text-base font-medium"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  Launch App <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
           </div>
         </div>
 

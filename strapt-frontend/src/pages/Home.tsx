@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import UsernameRegistration from "@/components/UsernameRegistration";
+import EnhancedUsernameRegistration from "@/components/EnhancedUsernameRegistration";
 import ReceivedStats from "@/components/ReceivedStats";
 import QRCode from "@/components/QRCode";
 import QRCodeScanner from "@/components/QRCodeScanner";
@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import BalanceSkeleton from "@/components/skeletons/BalanceSkeleton";
 import ReceivedStatsSkeleton from "@/components/skeletons/ReceivedStatsSkeleton";
 import ActivitySkeleton from "@/components/skeletons/ActivitySkeleton";
+import { formatBalanceWithoutDecimals } from "@/utils/format-utils";
 
 const Home = () => {
   const { isConnected, address } = useXellarWallet();
@@ -157,11 +158,11 @@ const Home = () => {
                           className="w-8 h-8"
                         />
                         <div className="text-2xl font-bold">
-                          {Number.parseInt(idrxBalance.value ? idrxBalance.value.toString() : "0")} {idrxBalance.symbol}
+                          {formatBalanceWithoutDecimals(idrxBalance.value, idrxBalance.symbol)}
                         </div>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        ≈ ${(Number.parseInt(idrxBalance.value ? idrxBalance.value.toString() : "0") * prices.idrx).toFixed(2)} USD
+                        ≈ ${(Number(formatBalanceWithoutDecimals(idrxBalance.value)) * prices.idrx).toFixed(2)} USD
                       </div>
                     </div>
                   )}
@@ -303,11 +304,8 @@ const Home = () => {
 
       {/* Username Registration Dialog */}
       <Dialog open={showUsernameReg} onOpenChange={setShowUsernameReg}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Register Your Username</DialogTitle>
-          </DialogHeader>
-          <UsernameRegistration onComplete={handleCompleteRegistration} />
+        <DialogContent className="p-0 overflow-hidden max-w-md">
+          <EnhancedUsernameRegistration onComplete={handleCompleteRegistration} />
         </DialogContent>
       </Dialog>
     </div>

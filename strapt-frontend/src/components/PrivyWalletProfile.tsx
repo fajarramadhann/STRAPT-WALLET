@@ -17,22 +17,23 @@ import { useState } from 'react';
 import { useConfig, useAccount, useChainId, useSwitchChain, useBalance } from 'wagmi';
 import { sepolia, baseSepolia } from 'viem/chains';
 import { seiTestnet } from '@/lib/chains';
+import { formatBalanceWithoutDecimals } from '@/utils/format-utils';
 
 const PrivyWalletProfile = () => {
   const { isConnected, address, disconnectWallet, login, user, activeWallet } = usePrivyWallet();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Use updated wagmi hooks
   const chainId = useChainId();
   const config = useConfig();
   const { switchChain } = useSwitchChain();
-  
+
   // Get balance using the account hook
   const { data: balance } = useBalance({
     address: address as `0x${string}`,
   });
-  
+
   // Get the current chain information
   const currentChain = config.chains.find(c => c.id === chainId);
 
@@ -54,7 +55,7 @@ const PrivyWalletProfile = () => {
   }
 
   const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
-  
+
   const handleCopy = () => {
     if (address) {
       navigator.clipboard.writeText(address);
@@ -104,7 +105,7 @@ const PrivyWalletProfile = () => {
             </span>
             {balance && (
               <span className="hidden md:inline text-muted-foreground">
-                ({parseFloat(balance.formatted).toFixed(4)} {balance.symbol})
+                ({formatBalanceWithoutDecimals(balance.value, balance.symbol)})
               </span>
             )}
           </Button>
@@ -128,7 +129,7 @@ const PrivyWalletProfile = () => {
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
@@ -143,7 +144,7 @@ const PrivyWalletProfile = () => {
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{truncatedAddress}</p>
               <p className="text-xs leading-none text-muted-foreground">
-                {balance && `${parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}`}
+                {balance && formatBalanceWithoutDecimals(balance.value, balance.symbol)}
               </p>
             </div>
           </DropdownMenuLabel>

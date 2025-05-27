@@ -6,11 +6,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
-/**
- * @title USDCFaucet
- * @notice A faucet contract for distributing USDC tokens on the Lisk Sepolia testnet
- * @dev Allows users to claim a configurable amount of USDC with a cooldown period
- */
 contract USDCFaucet is Ownable, ReentrancyGuard {
     IERC20 public immutable usdcToken;
 
@@ -57,10 +52,6 @@ contract USDCFaucet is Ownable, ReentrancyGuard {
         maxClaimPerAddress = _maxClaimPerAddress;
     }
 
-    /**
-     * @notice Allows a user to claim USDC tokens
-     * @dev Enforces cooldown period and maximum claim limits
-     */
     function claimTokens() external nonReentrant {
         // Check if cooldown period has passed
         if (block.timestamp < lastClaimTime[msg.sender] + cooldownPeriod) {

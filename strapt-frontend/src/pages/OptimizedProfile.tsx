@@ -18,6 +18,7 @@ import QRCode from '@/components/QRCode';
 import QRCodeScanner from '@/components/QRCodeScanner';
 import { Loading } from '@/components/ui/loading';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatBalanceWithoutDecimals } from '@/utils/format-utils';
 
 // Lazy load the tab content components
 const ProfileActivityTimeline = lazy(() => import('@/components/profile/ProfileActivityTimeline'));
@@ -207,7 +208,7 @@ const OptimizedProfile = () => {
                 </div>
               ) : idrxBalance ? (
                 <p className="font-semibold">
-                  {idrxBalance.value ? Number(idrxBalance.value) / 100 : 0} IDRX
+                  {formatBalanceWithoutDecimals(idrxBalance.value, 'IDRX')}
                 </p>
               ) : (
                 <p className="font-semibold">0 IDRX</p>

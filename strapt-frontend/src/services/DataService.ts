@@ -1,4 +1,4 @@
-import { initDataSubscriptionService, refreshData, DataType } from './DataSubscriptionService';
+import { initDataSubscriptionService, refreshData, setRefreshHandler, type DataType } from './DataSubscriptionService';
 import { initStreamsDataService, fetchStreamsData } from './StreamsDataService';
 import { initTokenBalanceService, fetchTokenBalances } from './TokenBalanceService';
 import { initTransfersDataService, fetchTransfersData } from './TransfersDataService';
@@ -34,9 +34,6 @@ export const initDataServices = () => {
 const registerRefreshHandlers = () => {
   // Instead of monkey patching, we'll use a more TypeScript-friendly approach
   // by updating the DataSubscriptionService directly
-
-  // Import the internal function that allows us to set the refresh handler
-  const { setRefreshHandler } = require('./DataSubscriptionService');
 
   // Set our custom refresh handler
   setRefreshHandler((dataType: DataType) => {

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Network, LogOut, Copy, ExternalLink, Wallet } from 'lucide-react';
+import { formatBalanceWithoutDecimals } from '@/utils/format-utils';
 
 const RainbowKitProfile = () => {
   const { address, isConnected } = useAccount();
@@ -35,7 +36,7 @@ const RainbowKitProfile = () => {
   }
 
   const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
-  
+
   const handleCopy = () => {
     if (address) {
       navigator.clipboard.writeText(address);
@@ -66,7 +67,7 @@ const RainbowKitProfile = () => {
         <Network className="h-4 w-4" />
         <span className="hidden md:inline">Switch Network</span>
       </Button>
-      
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
@@ -81,8 +82,8 @@ const RainbowKitProfile = () => {
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{truncatedAddress}</p>
               <p className="text-xs leading-none text-muted-foreground">
-                {balanceData?.formatted
-                  ? `${parseFloat(balanceData.formatted).toFixed(4)} ${balanceData.symbol}`
+                {balanceData?.value
+                  ? formatBalanceWithoutDecimals(balanceData.value, balanceData.symbol)
                   : 'Balance unavailable'}
               </p>
             </div>
