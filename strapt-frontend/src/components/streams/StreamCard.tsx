@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Play, Pause, StopCircle, Milestone, CircleDollarSign, Info, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+
 import { useToast } from '@/hooks/use-toast';
 import InfoTooltip from '@/components/InfoTooltip';
 import LiveStreamCounter from '@/components/LiveStreamCounter';
@@ -58,12 +58,12 @@ const getProgressColor = (status: 'active' | 'paused' | 'completed' | 'canceled'
     return 'bg-green-500'; // Bright green for fully claimed
   }
 
-  // Use more distinct colors for better UI understanding
+  // Use more distinct colors for better visibility of streamed tokens
   switch (status) {
     case 'active':
-      return 'bg-blue-500'; // Blue for active streams - flowing like water
+      return 'bg-blue-500'; // Bright blue for active streams - more visible
     case 'paused':
-      return 'bg-amber-500'; // Amber/yellow for paused - like a pause button
+      return 'bg-orange-500'; // Orange for paused - more visible than amber
     case 'completed':
       return 'bg-green-500'; // Green for completed - success color
     case 'canceled':
@@ -201,8 +201,8 @@ const StreamCard = memo(({
                           <span className="text-xs">Blue: Active - tokens are streaming</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-amber-500" />
-                          <span className="text-xs">Yellow: Paused - streaming temporarily stopped</span>
+                          <div className="w-3 h-3 rounded-full bg-orange-500" />
+                          <span className="text-xs">Orange: Paused - streaming temporarily stopped</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-green-500" />
@@ -219,10 +219,12 @@ const StreamCard = memo(({
                 side="left"
               />
             </div>
-            <Progress
-              value={(stream.streamed / stream.total) * 100}
-              className={getProgressColor(stream.status, stream.streamed)}
-            />
+            <div className="relative h-4 w-full overflow-hidden rounded-full bg-secondary/30">
+              <div
+                className={`h-full transition-all duration-300 ${getProgressColor(stream.status, stream.streamed)}`}
+                style={{ width: `${(stream.streamed / stream.total) * 100}%` }}
+              />
+            </div>
             {stream.milestones && stream.milestones.length > 0 && getMilestoneMarkers(stream)}
           </div>
           <div className="flex justify-between text-sm relative group">

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import { Check, Clock, X, ArrowUpRight, Download, ShieldCheck, Users, BarChart2, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfileActivity } from '@/hooks/use-profile-activity';
@@ -14,7 +15,10 @@ type Activity = ProfileActivity;
 const ProfileActivityTimeline = () => {
   const { activities, isLoading } = useProfileActivity();
   const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
+  const [displayedActivities, setDisplayedActivities] = useState<Activity[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
 
   // Apply filter when activities change or filter changes
   useEffect(() => {
@@ -31,6 +35,27 @@ const ProfileActivityTimeline = () => {
     const filtered = activities.filter(activity => activity.type === filter);
     setFilteredActivities(filtered);
   }, [activities, filter]);
+
+  // Apply pagination when filtered activities change
+  useEffect(() => {
+    const totalItems = filteredActivities.length;
+    const displayedItems = currentPage * ITEMS_PER_PAGE;
+    const displayed = filteredActivities.slice(0, displayedItems);
+    setDisplayedActivities(displayed);
+  }, [filteredActivities, currentPage]);
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+
+  // Calculate if there are more items to load
+  const hasMore = displayedActivities.length < filteredActivities.length;
+
+  // Load more function
+  const loadMore = () => {
+    setCurrentPage(prev => prev + 1);
+  };
 
   const formatDate = (dateString: string) => {
     try {
@@ -172,44 +197,58 @@ const ProfileActivityTimeline = () => {
                 </div>
               </div>
             ))
-          ) : filteredActivities.length === 0 ? (
+          ) : displayedActivities.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No recent activity to display</p>
           ) : (
-            filteredActivities.map((activity, index) => (
-              <div key={activity.id}>
-                <div className="flex items-start gap-3 py-2">
-                  <div className={cn(
-                    "rounded-full p-2",
-                    "bg-muted flex items-center justify-center"
-                  )}>
-                    {getActivityIcon(activity.type)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">{activity.title}</p>
-                        <p className="text-sm text-muted-foreground">{activity.amount}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1">
-                          <div className={cn(
-                            "h-2.5 w-2.5 rounded-full",
-                            getStatusColor(activity.status)
-                          )} />
-                          <span className="text-sm font-medium">
-                            {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
-                          </span>
+            <>
+              {displayedActivities.map((activity, index) => (
+                <div key={`${activity.type}-${activity.id}-${activity.timestamp}`}>
+                  <div className="flex items-start gap-3 py-2">
+                    <div className={cn(
+                      "rounded-full p-2",
+                      "bg-muted flex items-center justify-center"
+                    )}>
+                      {getActivityIcon(activity.type)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{activity.title}</p>
+                          <p className="text-sm text-muted-foreground">{activity.amount}</p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(activity.timestamp)}
-                        </p>
+                        <div className="text-right">
+                          <div className="flex items-center gap-1">
+                            <div className={cn(
+                              "h-2.5 w-2.5 rounded-full",
+                              getStatusColor(activity.status)
+                            )} />
+                            <span className="text-sm font-medium">
+                              {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(activity.timestamp)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  {index < displayedActivities.length - 1 && <Separator />}
                 </div>
-                {index < activities.length - 1 && <Separator />}
-              </div>
-            ))
+              ))}
+              {hasMore && (
+                <div className="pt-4 border-t border-border mt-4">
+                  <Button
+                    variant="ghost"
+                    className="w-full"
+                    onClick={loadMore}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Loading..." : "Load More"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </CardContent>

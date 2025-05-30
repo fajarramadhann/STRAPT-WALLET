@@ -15,7 +15,7 @@ interface ActivityItemProps {
   hash?: string;
 }
 
-const ActivityItem = ({ type, title, amount, date, recipient, hash = "sei1tx92h43lta8kdl5z4jmwxz7" }: ActivityItemProps) => {
+const ActivityItem = ({ type, title, amount, date, recipient, hash }: ActivityItemProps) => {
   const [showDetails, setShowDetails] = useState(false);
 
   const getIcon = () => {
@@ -42,7 +42,7 @@ const ActivityItem = ({ type, title, amount, date, recipient, hash = "sei1tx92h4
 
   return (
     <>
-      <div 
+      <div
         className="flex items-center justify-between p-3 rounded-xl hover:bg-secondary/50 transition-colors cursor-pointer"
         onClick={() => setShowDetails(true)}
       >
@@ -58,7 +58,7 @@ const ActivityItem = ({ type, title, amount, date, recipient, hash = "sei1tx92h4
         <span className={cn('font-semibold', getAmountColor())}>{amount}</span>
       </div>
 
-      <TransactionDetails 
+      <TransactionDetails
         open={showDetails}
         onClose={() => setShowDetails(false)}
         transaction={{

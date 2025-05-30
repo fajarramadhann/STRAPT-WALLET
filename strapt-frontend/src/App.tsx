@@ -36,8 +36,7 @@ const Savings = lazy(() => import("./pages/Savings"));
 const ComingSoon = lazy(() => import("./pages/ComingSoon"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-// Lazy load frame components
-const FrameRouter = lazy(() => import("./components/frames/FrameRouter"));
+
 
 const App = () => {
   const isMobile = useIsMobile();
@@ -67,22 +66,14 @@ const App = () => {
                   } />
                   <Route path="claim/:id?" element={<Navigate to="/app/claims" replace />} />
 
-                  {/* Frame routes - accessible without wallet connection */}
-                  <Route path="/frames/*" element={
-                    <Suspense fallback={<PageLoading />}>
-                      <FrameRouter />
-                    </Suspense>
-                  } />
-                  <Route path="/frame/*" element={
-                    <Suspense fallback={<PageLoading />}>
-                      <FrameRouter />
-                    </Suspense>
-                  } />
-
                   {/* Protected routes require wallet connection */}
                   <Route element={<WalletCheck />}>
                     <Route path="app" element={isMobile ? <Layout /> : <DesktopLayout />}>
-                      <Route index element={<Home />} />
+                      <Route index element={
+                        <Suspense fallback={<PageLoading />}>
+                          <Home />
+                        </Suspense>
+                      } />
                       <Route path="transfer" element={
                         <Suspense fallback={<PageLoading />}>
                           <Transfer />

@@ -19,7 +19,7 @@ interface TransactionDetailsProps {
 
 const TransactionDetails = ({ open, onClose, transaction }: TransactionDetailsProps) => {
   const { toast } = useToast();
-  
+
   if (!transaction) return null;
 
   const getIcon = () => {
@@ -64,7 +64,8 @@ const TransactionDetails = ({ open, onClose, transaction }: TransactionDetailsPr
   };
 
   const handleViewExplorer = () => {
-    window.open(`https://sei.explorers.guru/transaction/${transaction.hash}`, '_blank');
+    // Use Lisk Sepolia explorer
+    window.open(`https://sepolia-blockscout.lisk.com/tx/${transaction.hash}`, '_blank');
   };
 
   return (
@@ -73,7 +74,7 @@ const TransactionDetails = ({ open, onClose, transaction }: TransactionDetailsPr
         <DialogHeader>
           <DialogTitle>Transaction Details</DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -89,20 +90,20 @@ const TransactionDetails = ({ open, onClose, transaction }: TransactionDetailsPr
               {transaction.amount}
             </span>
           </div>
-          
+
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Date</span>
               <span>{transaction.date}</span>
             </div>
-            
+
             {transaction.recipient && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Recipient</span>
                 <span>{transaction.recipient}</span>
               </div>
             )}
-            
+
             <div className="space-y-1">
               <span className="text-muted-foreground">Transaction Hash</span>
               <div className="flex items-center space-x-2">
@@ -115,10 +116,10 @@ const TransactionDetails = ({ open, onClose, transaction }: TransactionDetailsPr
               </div>
             </div>
           </div>
-          
-          <Button 
-            variant="outline" 
-            className="w-full" 
+
+          <Button
+            variant="outline"
+            className="w-full"
             onClick={handleViewExplorer}
           >
             View in Explorer

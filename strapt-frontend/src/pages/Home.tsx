@@ -6,6 +6,7 @@ import {
   QrCode,
   UserPlus,
   Copy,
+  Droplets,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import QuickAction from "@/components/QuickAction";
@@ -29,11 +30,13 @@ import { useTokenBalances } from "@/hooks/use-token-balances";
 import { useChainId, useConfig } from "wagmi";
 import { formatUnits } from "viem";
 import { liskSepolia, baseSepolia } from "viem/chains";
-import { toast } from "sonner";
 import BalanceSkeleton from "@/components/skeletons/BalanceSkeleton";
 import ReceivedStatsSkeleton from "@/components/skeletons/ReceivedStatsSkeleton";
 import ActivitySkeleton from "@/components/skeletons/ActivitySkeleton";
 import { formatBalanceWithoutDecimals } from "@/utils/format-utils";
+import { useUSDCFaucet } from "@/hooks/use-usdc-faucet";
+import { useTransactionHistory } from "@/hooks/use-transaction-history";
+import toast from "@/utils/toast-deduplication";
 
 const Home = () => {
   const { isConnected, address } = useXellarWallet();
@@ -84,40 +87,38 @@ const Home = () => {
   const [showQR, setShowQR] = useState(false);
   const [showUsernameReg, setShowUsernameReg] = useState(false);
 
-  // Mock data for received funds
-  const receivedData = {
-    totalReceived: 385.28,
-    recentActivity: [
-      {
-        amount: 10.5,
-        direction: "in",
-        date: new Date(Date.now() - 8 * 60 * 60 * 1000),
-      },
-      {
-        amount: 125,
-        direction: "out",
-        date: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      },
-      {
-        amount: 200,
-        direction: "in",
-        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      },
-      {
-        amount: 50,
-        direction: "in",
-        date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      },
-      {
-        amount: 75,
-        direction: "out",
-        date: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      },
-    ] as Array<{ amount: number; direction: "in" | "out"; date: Date }>,
-  };
+  // USDC Faucet functionality
+  const { claimTokens, isClaiming, userClaimInfo } = useUSDCFaucet();
+
+  // Real transaction history data
+  const {
+    transactions,
+    isLoading: isLoadingHistory,
+    hasMore,
+    loadMore,
+    totalReceived,
+    recentActivity
+  } = useTransactionHistory();
 
   const handleCompleteRegistration = () => {
     setShowUsernameReg(false);
+  };
+
+  const handleTopup = async () => {
+    try {
+      const success = await claimTokens();
+      if (success) {
+        // Token balances will be automatically refreshed
+        toast.success("USDC claimed successfully!", {
+          description: "Your balance will be updated shortly"
+        });
+      }
+    } catch (error) {
+      console.error("Error claiming USDC:", error);
+      toast.error("Failed to claim USDC", {
+        description: "Please try again later"
+      });
+    }
   };
 
   return (
@@ -181,6 +182,15 @@ const Home = () => {
               >
                 <ArrowDown className="h-4 w-4" /> Claims
               </Button>
+              <Button
+                variant="secondary"
+                className="flex items-center gap-2 rounded-xl"
+                onClick={handleTopup}
+                disabled={isClaiming || !userClaimInfo.canClaim}
+              >
+                <Droplets className="h-4 w-4" />
+                {isClaiming ? "Claiming..." : "Topup"}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -211,62 +221,124 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Received Stats */}
-      {isLoading ? (
+      {/* Stablecoin Balances */}
+      <div className="space-y-3">
+        <h2 className="font-semibold text-lg">Stablecoin Balances</h2>
+        <Card className="dark:border-primary/20 border-primary/30">
+          <CardContent className="p-4">
+            {isLoading ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-secondary rounded-full animate-pulse" />
+                    <div className="space-y-1">
+                      <div className="w-16 h-4 bg-secondary rounded animate-pulse" />
+                      <div className="w-24 h-3 bg-secondary rounded animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="w-20 h-6 bg-secondary rounded animate-pulse" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-secondary rounded-full animate-pulse" />
+                    <div className="space-y-1">
+                      <div className="w-16 h-4 bg-secondary rounded animate-pulse" />
+                      <div className="w-24 h-3 bg-secondary rounded animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="w-20 h-6 bg-secondary rounded animate-pulse" />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {tokens.filter(token => token.symbol === 'IDRX' || token.symbol === 'USDC').map((token) => (
+                  <div key={token.symbol} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={token.icon}
+                        alt={token.symbol}
+                        className="w-8 h-8 rounded-full"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div>
+                        <p className="font-medium">{token.symbol}</p>
+                        <p className="text-sm text-muted-foreground">{token.name}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">
+                        {formatBalanceWithoutDecimals(BigInt(Math.floor(token.balance * (token.symbol === 'IDRX' ? 100 : 1000000))), token.symbol)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/*
+      Commented out sections - preserved for future use
+
+      Received Stats:
+      {isLoading || isLoadingHistory ? (
         <ReceivedStatsSkeleton />
       ) : (
         <ReceivedStats
-          totalReceived={receivedData.totalReceived}
-          recentActivity={receivedData.recentActivity}
+          totalReceived={totalReceived}
+          recentActivity={recentActivity}
         />
       )}
 
-      {/* Recent Activity */}
-      {isLoading ? (
+      Recent Activity:
+      {isLoading || isLoadingHistory ? (
         <ActivitySkeleton />
       ) : (
         <div className="space-y-3">
-          <h2 className="font-semibold text-lg">Recent Activity <span className="ml-3 text-xs text-amber-500 font-normal">(dummy data)</span></h2>
+          <h2 className="font-semibold text-lg">Recent Activity</h2>
           <Card className="dark:border-primary/20 border-primary/30">
             <CardContent className="p-0">
-              <ActivityItem
-                type="sent"
-                title="Sent to Mark"
-                amount="-125 IDRX"
-                date="2 hrs ago"
-                recipient="@mark.strapt"
-              />
-              <ActivityItem
-                type="pending"
-                title="Protected Transfer"
-                amount="50 IDRX"
-                date="5 hrs ago"
-                recipient="@alice.strapt"
-              />
-              <ActivityItem
-                type="received"
-                title="Received from Stream"
-                amount="+10.5 IDRX"
-                date="8 hrs ago"
-              />
-              <ActivityItem
-                type="sent"
-                title="Pool Contribution"
-                amount="-75 IDRX"
-                date="1 day ago"
-                recipient="Trip Fund"
-              />
-              <ActivityItem
-                type="received"
-                title="Received from John"
-                amount="+200 IDRX"
-                date="2 days ago"
-                recipient="@john.strapt"
-              />
+              {transactions.length > 0 ? (
+                <>
+                  {transactions.map((transaction) => (
+                    <ActivityItem
+                      key={transaction.id}
+                      type={transaction.type === 'received' || transaction.type === 'stream_received' ? 'received' :
+                            transaction.status === 'pending' ? 'pending' : 'sent'}
+                      title={transaction.title}
+                      amount={`${transaction.amount} ${transaction.tokenSymbol}`}
+                      date={transaction.date.toLocaleDateString()}
+                      recipient={transaction.recipient}
+                      hash={transaction.hash}
+                    />
+                  ))}
+                  {hasMore && (
+                    <div className="p-3 border-t border-border">
+                      <Button
+                        variant="ghost"
+                        className="w-full"
+                        onClick={loadMore}
+                        disabled={isLoadingHistory}
+                      >
+                        {isLoadingHistory ? "Loading..." : "Load More"}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="p-6 text-center text-muted-foreground">
+                  <p>No recent activity</p>
+                  <p className="text-sm">Your transactions will appear here</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       )}
+      */}
 
       {/* QR Code Dialog */}
       <Dialog open={showQR} onOpenChange={setShowQR}>

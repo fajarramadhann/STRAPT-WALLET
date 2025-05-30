@@ -11,7 +11,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@frames.js/render": "^0.5.6",
     "@hookform/resolvers": "^3.9.0",
     "@privy-io/react-auth": "^2.8.3",
     "@radix-ui/react-accordion": "^1.2.0",

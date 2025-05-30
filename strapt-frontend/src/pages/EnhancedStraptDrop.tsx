@@ -119,17 +119,26 @@ const EnhancedStraptDrop = () => {
 
   return (
     <div className="container max-w-3xl mx-auto py-4 px-4 sm:px-6 sm:py-6">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/app')}
+            className="mr-1"
+            aria-label="Back to App"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl sm:text-2xl font-bold">Create STRAPT Drop</h1>
+        </div>
         <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate('/app')}
-          className="mr-1"
-          aria-label="Back to App"
+          variant="outline"
+          onClick={() => navigate('/app/strapt-drop/my-drops')}
+          className="w-full sm:w-auto"
         >
-          <ChevronLeft className="h-5 w-5" />
+          View My Drops
         </Button>
-        <h1 className="text-xl sm:text-2xl font-bold">Create STRAPT Drop</h1>
       </div>
 
       <AnimatePresence mode="wait">
@@ -286,13 +295,7 @@ const EnhancedStraptDrop = () => {
               </div>
             </CardContent>
 
-            <CardFooter className="flex justify-between pt-2 pb-6 px-6 border-t border-border">
-              <Button
-                variant="outline"
-                onClick={() => navigate('/app/strapt-drop/my-drops')}
-              >
-                View My Drops
-              </Button>
+            <CardFooter className="flex justify-end pt-2 pb-6 px-6 border-t border-border">
               <Button
                 onClick={handleCreateDrop}
                 disabled={isLoading || isApproving || isCreating}

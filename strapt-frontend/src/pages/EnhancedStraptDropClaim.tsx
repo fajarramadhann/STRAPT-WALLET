@@ -7,7 +7,7 @@ import { useXellarWallet } from '@/hooks/use-xellar-wallet';
 import { useStraptDrop } from '@/hooks/use-strapt-drop';
 import type { DropInfo } from '@/hooks/use-strapt-drop';
 import { Loading } from '@/components/ui/loading';
-import { Gift, Clock, Users, AlertTriangle, Check, Shuffle, Coins, PartyPopper, QrCode, ChevronLeft } from 'lucide-react';
+import { Gift, Clock, Users, AlertTriangle, Check, Shuffle, Coins, PartyPopper, QrCode, ChevronLeft, Droplets } from 'lucide-react';
 import { formatUnits } from 'viem';
 import contractConfig from '@/contracts/contract-config.json';
 import QRCodeScanner from '@/components/QRCodeScanner';
@@ -16,6 +16,8 @@ import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import FaucetClaim from '@/components/FaucetClaim';
 
 const EnhancedStraptDropClaim = () => {
   const navigate = useNavigate();
@@ -33,6 +35,7 @@ const EnhancedStraptDropClaim = () => {
   const [claimAmount, setClaimAmount] = useState<string>('');
   const [showScanner, setShowScanner] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [showTopupModal, setShowTopupModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load drop info
@@ -429,51 +432,66 @@ const EnhancedStraptDropClaim = () => {
             </CardContent>
 
             <CardFooter className="pt-2 pb-6 px-6 border-t border-border">
-              <motion.div
-                className="w-full"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button
-                  className={cn(
-                    "w-full text-base py-6",
-                    hasClaimed && "bg-green-500 hover:bg-green-600"
-                  )}
-                  size="lg"
-                  disabled={
-                    isLoading ||
-                    isClaiming ||
-                    hasClaimed ||
-                    !dropInfo.isActive ||
-                    isExpired(dropInfo.expiryTime) ||
-                    dropInfo.claimedCount >= dropInfo.totalRecipients ||
-                    isCreatorWithinCooldown(dropInfo)
-                  }
-                  onClick={handleClaim}
+              <div className="flex gap-3 w-full">
+                <motion.div
+                  className="flex-1"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  {isClaiming ? (
-                    <>
-                      <Loading size="sm" className="mr-2" />
-                      Claiming...
-                    </>
-                  ) : isLoading ? (
-                    <>
-                      <Loading size="sm" className="mr-2" />
-                      Processing...
-                    </>
-                  ) : hasClaimed ? (
-                    <>
-                      <Check className="h-5 w-5 mr-2" />
-                      Already Claimed
-                    </>
-                  ) : (
-                    <>
-                      <Gift className="h-5 w-5 mr-2" />
-                      Claim Tokens
-                    </>
-                  )}
-                </Button>
-              </motion.div>
+                  <Button
+                    className={cn(
+                      "w-full text-base py-6",
+                      hasClaimed && "bg-green-500 hover:bg-green-600"
+                    )}
+                    size="lg"
+                    disabled={
+                      isLoading ||
+                      isClaiming ||
+                      hasClaimed ||
+                      !dropInfo.isActive ||
+                      isExpired(dropInfo.expiryTime) ||
+                      dropInfo.claimedCount >= dropInfo.totalRecipients ||
+                      isCreatorWithinCooldown(dropInfo)
+                    }
+                    onClick={handleClaim}
+                  >
+                    {isClaiming ? (
+                      <>
+                        <Loading size="sm" className="mr-2" />
+                        Claiming...
+                      </>
+                    ) : isLoading ? (
+                      <>
+                        <Loading size="sm" className="mr-2" />
+                        Processing...
+                      </>
+                    ) : hasClaimed ? (
+                      <>
+                        <Check className="h-5 w-5 mr-2" />
+                        Already Claimed
+                      </>
+                    ) : (
+                      <>
+                        <Gift className="h-5 w-5 mr-2" />
+                        Claim Tokens
+                      </>
+                    )}
+                  </Button>
+                </motion.div>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="py-6 px-4"
+                    onClick={() => setShowTopupModal(true)}
+                  >
+                    <Droplets className="h-5 w-5" />
+                  </Button>
+                </motion.div>
+              </div>
             </CardFooter>
           </Card>
         </motion.div>
@@ -543,6 +561,22 @@ const EnhancedStraptDropClaim = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Topup Modal */}
+      <Dialog open={showTopupModal} onOpenChange={setShowTopupModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Droplets className="h-5 w-5" />
+              Top Up Tokens
+            </DialogTitle>
+            <DialogDescription>
+              Get free test tokens to use with STRAPT
+            </DialogDescription>
+          </DialogHeader>
+          <FaucetClaim />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Moon, Sun, ChevronRight, LogOut, Shield, BarChart2, Users, Info, FileText, QrCode, UserPlus, Clock, CalendarClock, Scan, PlusCircle, Play } from 'lucide-react';
+import { Copy, Moon, Sun, ChevronRight, LogOut, Shield, BarChart2, Users, Info, FileText, QrCode, UserPlus, Clock, CalendarClock, Scan, PlusCircle, Play, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
@@ -18,8 +18,10 @@ import QuickContacts from '@/components/profile/QuickContacts';
 import DecentralizedIdentity from '@/components/profile/DecentralizedIdentity';
 import ScheduledTransfers from '@/components/profile/ScheduledTransfers';
 import StreamForm from '@/components/streams/StreamForm';
+import ReceivedStats from '@/components/ReceivedStats';
 import { useTokenBalances } from '@/hooks/use-token-balances';
 import { usePaymentStream } from '@/hooks/use-payment-stream';
+import { useTransactionHistory } from '@/hooks/use-transaction-history';
 import { useDataContext } from '@/providers/DataProvider';
 
 const Profile = () => {
@@ -37,6 +39,9 @@ const Profile = () => {
   const { tokens, isLoading: isLoadingTokens } = useTokenBalances();
   const { createStream } = usePaymentStream();
   const { refreshAllData } = useDataContext();
+
+  // Transaction history for funds received
+  const { totalReceived, recentActivity, isLoading: isLoadingHistory } = useTransactionHistory();
 
   const truncatedAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
 
@@ -228,10 +233,14 @@ const Profile = () => {
 
       {/* Tabs for different sections - improved for mobile */}
       <Tabs defaultValue="activity" className="w-full">
-        <TabsList className="grid grid-cols-4 w-full mb-4">
+        <TabsList className="grid grid-cols-5 w-full mb-4">
           <TabsTrigger value="activity" className="flex flex-col items-center p-2 h-auto">
             <Clock className="h-4 w-4 mb-1" />
             <span className="text-xs">Activity</span>
+          </TabsTrigger>
+          <TabsTrigger value="funds" className="flex flex-col items-center p-2 h-auto">
+            <BarChart3 className="h-4 w-4 mb-1" />
+            <span className="text-xs">Funds</span>
           </TabsTrigger>
           <TabsTrigger value="contacts" className="flex flex-col items-center p-2 h-auto">
             <Users className="h-4 w-4 mb-1" />
@@ -249,6 +258,19 @@ const Profile = () => {
 
         <TabsContent value="activity" className="space-y-4 mt-2">
           <ProfileActivityTimeline />
+        </TabsContent>
+
+        <TabsContent value="funds" className="space-y-4 mt-2">
+          {isLoadingHistory ? (
+            <div className="space-y-4">
+              <div className="h-32 bg-secondary/20 rounded-lg animate-pulse" />
+            </div>
+          ) : (
+            <ReceivedStats
+              totalReceived={totalReceived}
+              recentActivity={recentActivity}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="contacts" className="space-y-4 mt-2">

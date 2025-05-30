@@ -14,8 +14,8 @@ interface ReceivedStatsProps {
 const ReceivedStats = ({ totalReceived, recentActivity }: ReceivedStatsProps) => {
   // Calculate last 7 days received
   const last7DaysReceived = recentActivity
-    .filter(item => 
-      item.direction === 'in' && 
+    .filter(item =>
+      item.direction === 'in' &&
       item.date >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     )
     .reduce((sum, item) => sum + item.amount, 0);
@@ -25,7 +25,7 @@ const ReceivedStats = ({ totalReceived, recentActivity }: ReceivedStatsProps) =>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center">
           <BarChart3 className="h-5 w-5 mr-2 text-primary" />
-          Funds Received <span className="ml-3 text-xs text-amber-500 font-normal">(dummy data)</span>
+          Funds Received
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -40,25 +40,31 @@ const ReceivedStats = ({ totalReceived, recentActivity }: ReceivedStatsProps) =>
               <div className="text-2xl font-semibold">{last7DaysReceived.toFixed(2)} IDRX</div>
             </div>
           </div>
-          
+
           <div>
             <h4 className="text-sm font-medium mb-2">Recent Transactions</h4>
             <div className="space-y-2">
-              {recentActivity.slice(0, 4).map((activity, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center">
-                    {activity.direction === 'in' ? (
-                      <ArrowDownRight className="h-4 w-4 mr-2 text-green-500" />
-                    ) : (
-                      <ArrowUpRight className="h-4 w-4 mr-2 text-amber-500" />
-                    )}
-                    <span>{activity.direction === 'in' ? 'Received' : 'Sent'}</span>
-                  </div>
-                  <div className={activity.direction === 'in' ? 'text-green-500' : 'text-amber-500'}>
-                    {activity.direction === 'in' ? '+' : '-'}{activity.amount.toFixed(2)} IDRX
-                  </div>
+              {recentActivity.length === 0 ? (
+                <div className="text-center text-muted-foreground py-4">
+                  <p className="text-sm">No recent transactions</p>
                 </div>
-              ))}
+              ) : (
+                recentActivity.slice(0, 4).map((activity, index) => (
+                  <div key={`activity-${index}-${activity.amount}-${activity.date.getTime()}`} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center">
+                      {activity.direction === 'in' ? (
+                        <ArrowDownRight className="h-4 w-4 mr-2 text-green-500" />
+                      ) : (
+                        <ArrowUpRight className="h-4 w-4 mr-2 text-amber-500" />
+                      )}
+                      <span>{activity.direction === 'in' ? 'Received' : 'Sent'}</span>
+                    </div>
+                    <div className={activity.direction === 'in' ? 'text-green-500' : 'text-amber-500'}>
+                      {activity.direction === 'in' ? '+' : '-'}{activity.amount.toFixed(2)} IDRX
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Play, Pause, StopCircle, Milestone, CircleDollarSign, Clock, CheckCircle, Calendar, User, ArrowUpRight, ArrowDownLeft, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -57,11 +57,11 @@ const getStatusIcon = (status: 'active' | 'paused' | 'completed' | 'canceled', s
 
 const getStatusBadgeVariant = (status: 'active' | 'paused' | 'completed' | 'canceled') => {
   switch (status) {
-    case 'active': return 'default';
+    case 'active': return 'success'; // Changed from 'default' to 'success' for green color
     case 'paused': return 'warning';
-    case 'completed': return 'success';
+    case 'completed': return 'secondary';
     case 'canceled': return 'destructive';
-    default: return 'default';
+    default: return 'success';
   }
 };
 
@@ -71,18 +71,18 @@ const getProgressColor = (status: 'active' | 'paused' | 'completed' | 'canceled'
     return 'bg-green-500'; // Bright green for fully claimed
   }
 
-  // Use more distinct colors for better UI understanding
+  // Use more distinct colors for better visibility of streamed tokens
   switch (status) {
     case 'active':
-      return 'bg-primary'; // Primary purple color for active streams
+      return 'bg-blue-500'; // Bright blue for active streams - more visible than purple
     case 'paused':
-      return 'bg-amber-500'; // Amber/yellow for paused - like a pause button
+      return 'bg-orange-500'; // Orange for paused - more visible than amber
     case 'completed':
       return 'bg-green-500'; // Green for completed - success color
     case 'canceled':
       return 'bg-red-500'; // Red for canceled - error/stop color
     default:
-      return 'bg-primary';
+      return 'bg-blue-500';
   }
 };
 
@@ -334,10 +334,12 @@ const EnhancedStreamCard = memo(({
             />
 
             <div className="relative">
-              <Progress
-                value={(stream.streamed / stream.total) * 100}
-                className={getProgressColor(stream.status, stream.streamed)}
-              />
+              <div className="relative h-4 w-full overflow-hidden rounded-full bg-secondary/30">
+                <div
+                  className={`h-full transition-all duration-300 ${getProgressColor(stream.status, stream.streamed)}`}
+                  style={{ width: `${(stream.streamed / stream.total) * 100}%` }}
+                />
+              </div>
               {stream.milestones && stream.milestones.length > 0 && getMilestoneMarkers(stream)}
             </div>
           </div>

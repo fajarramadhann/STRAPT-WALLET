@@ -166,7 +166,7 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
               </div>
 
               {/* Display Transfer ID */}
-              <div className="mt-3 border-t border-border pt-3">
+              {/* <div className="mt-3 border-t border-border pt-3">
                 <p className="text-sm text-muted-foreground mb-1">Transfer ID:</p>
                 <div className="bg-secondary p-2 rounded mb-2 font-mono text-xs overflow-hidden text-ellipsis">
                   {transferId ? shortenTransferId(transferId) : 'Not available'}
@@ -174,7 +174,7 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
                 <Button variant="outline" size="sm" onClick={handleCopyTransferId} className="w-full mb-3" disabled={!transferId}>
                   <Copy className="h-4 w-4 mr-1" /> Copy ID
                 </Button>
-              </div>
+              </div> */}
 
               {/* Display Claim Code if available (only for claim transfers with password) */}
               {withPassword && claimCode && (

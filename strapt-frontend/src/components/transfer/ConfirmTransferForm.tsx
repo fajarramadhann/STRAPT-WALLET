@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { useTransferContext } from '@/contexts/TransferContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { Loading } from '@/components/ui/loading';
+
 import { toast } from 'sonner';
 
 interface ConfirmTransferFormProps {
@@ -327,7 +327,7 @@ const ConfirmTransferForm = ({ onSubmit }: ConfirmTransferFormProps) => {
                   <span>Processing Transfer...</span>
                 </div>
               ) : (
-                "Confirm Protected Transfer"
+                withPassword ? "Confirm Protected Transfer" : "Confirm Transfer"
               )}
             </Button>
           )
