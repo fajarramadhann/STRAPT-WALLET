@@ -15,21 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import MilestoneInput from '@/components/MilestoneInput';
 import type { Milestone as MilestoneType } from '@/components/MilestoneInput';
-import DurationSelect from '@/components/DurationSelect';
-import type { DurationUnit } from '@/components/DurationSelect';
-import TokenSelect from '@/components/TokenSelect';
-import type { TokenOption } from '@/components/TokenSelect';
 import { usePaymentStream } from '@/hooks/use-payment-stream';
 import type { Stream as ContractStream, TokenType } from '@/hooks/use-payment-stream';
 import { StreamStatus } from '@/hooks/use-payment-stream';
 import { useXellarWallet } from '@/hooks/use-xellar-wallet';
-import { Loading } from '@/components/ui/loading';
 import LiveStreamCounter from '@/components/LiveStreamCounter';
 import InfoTooltip from '@/components/InfoTooltip';
 import { useTokenBalances } from '@/hooks/use-token-balances';
-import StreamForm from '@/components/StreamForm';
+import StreamForm from '@/components/streams/StreamForm';
+import { StreamListSkeleton } from '@/components/skeletons/StreamCardSkeleton';
 
 // UI Stream interface that extends the contract Stream type
 interface UIStream {
@@ -46,6 +41,7 @@ interface UIStream {
   endTime: number; // Unix timestamp in seconds
   isRecipient: boolean; // Whether the current user is the recipient
   isSender: boolean; // Whether the current user is the sender
+  withdrawn?: number; // Amount already withdrawn from contract
 }
 
 const Streams = () => {
@@ -53,13 +49,7 @@ const Streams = () => {
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
   const [selectedStream, setSelectedStream] = useState<UIStream | null>(null);
   const [selectedMilestone, setSelectedMilestone] = useState<MilestoneType | null>(null);
-  const [recipient, setRecipient] = useState('');
-  const [amount, setAmount] = useState('');
-  const [duration, setDuration] = useState(60);
-  const [durationUnit, setDurationUnit] = useState<DurationUnit>('minutes');
-  const [milestones, setMilestones] = useState<MilestoneType[]>([]);
   const { tokens, isLoading: isLoadingTokens } = useTokenBalances();
-  const [selectedToken, setSelectedToken] = useState<TokenOption>(tokens[0]);
   const [isCreatingStream, setIsCreatingStream] = useState(false);
   const { toast } = useToast();
   const { address, isConnected } = useXellarWallet();
@@ -82,15 +72,7 @@ const Streams = () => {
   const [activeStreams, setActiveStreams] = useState<UIStream[]>([]);
   const [completedStreams, setCompletedStreams] = useState<UIStream[]>([]);
 
-  // Update selected token when tokens array changes
-  useEffect(() => {
-    if (tokens.length > 0) {
-      // Find the token with the same symbol as the currently selected one
-      const currentSymbol = selectedToken?.symbol;
-      const newSelected = tokens.find(t => t.symbol === currentSymbol) || tokens[0];
-      setSelectedToken(newSelected);
-    }
-  }, [tokens, selectedToken?.symbol]);
+
 
   // Process streams when they change
   useEffect(() => {
@@ -116,6 +98,7 @@ const Streams = () => {
         endTime: stream.endTime,
         isRecipient: address?.toLowerCase() === stream.recipient.toLowerCase(),
         isSender: address?.toLowerCase() === stream.sender.toLowerCase(),
+        withdrawn: Number(stream.withdrawn || '0'),
         milestones: stream.milestones.map((m, index) => ({
           id: `ms-${stream.id}-${index}`,
           percentage: m.percentage,
@@ -181,14 +164,16 @@ const Streams = () => {
     return `${(ratePerSecond * 86400).toFixed(4)} ${stream.tokenSymbol}/day`;
   };
 
-  const handleDurationChange = (value: number, unit: DurationUnit) => {
-    setDuration(value);
-    setDurationUnit(unit);
-  };
 
-  const handleCreateStream = async (e: React.FormEvent) => {
-    e.preventDefault();
 
+  const handleCreateStream = async (data: {
+    recipient: string;
+    tokenType: TokenType;
+    amount: string;
+    durationInSeconds: number;
+    milestonePercentages: number[];
+    milestoneDescriptions: string[];
+  }) => {
     if (!isConnected) {
       toast({
         title: "Wallet Not Connected",
@@ -198,71 +183,26 @@ const Streams = () => {
       return;
     }
 
-    if (!recipient || !amount || !duration) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Validate amount
-    if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
-      toast({
-        title: "Invalid Amount",
-        description: "Please enter a valid amount greater than 0",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if amount is greater than balance
-    if (selectedToken.balance && Number(amount) > selectedToken.balance) {
-      toast({
-        title: "Insufficient Balance",
-        description: `You only have ${selectedToken.balance} ${selectedToken.symbol} available`,
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       setIsCreatingStream(true);
 
-      // Calculate duration in seconds
-      let durationInSeconds = duration;
-      if (durationUnit === 'minutes') durationInSeconds *= 60;
-      if (durationUnit === 'hours') durationInSeconds *= 3600;
-      if (durationUnit === 'days') durationInSeconds *= 86400;
-
-      // Extract milestone data
-      const milestonePercentages = milestones.map(m => m.percentage);
-      const milestoneDescriptions = milestones.map(m => m.description);
-
       // Create the stream
-      const tokenType = selectedToken.symbol as TokenType;
       await createStream(
-        recipient,
-        tokenType,
-        amount,
-        durationInSeconds,
-        milestonePercentages,
-        milestoneDescriptions
+        data.recipient,
+        data.tokenType,
+        data.amount,
+        data.durationInSeconds,
+        data.milestonePercentages,
+        data.milestoneDescriptions
       );
 
       toast({
         title: "Stream Created",
-        description: `Successfully started streaming ${amount} ${selectedToken.symbol} to ${recipient}`,
+        description: `Successfully started streaming ${data.amount} ${data.tokenType} to ${formatAddress(data.recipient)}`,
       });
 
       // Reset form and refresh streams
       setShowCreate(false);
-      setRecipient('');
-      setAmount('');
-      setDuration(60);
-      setDurationUnit('minutes');
-      setMilestones([]);
 
       // Refresh streams list
       refetchStreams();
@@ -376,42 +316,7 @@ const Streams = () => {
     );
   };
 
-  const calculateStreamRate = () => {
-    if (!amount || !duration) return '0';
 
-    const amountNum = Number.parseFloat(amount);
-
-    let seconds = duration;
-    if (durationUnit === 'minutes') seconds *= 60;
-    if (durationUnit === 'hours') seconds *= 3600;
-    if (durationUnit === 'days') seconds *= 86400;
-
-    const ratePerSecond = amountNum / seconds;
-
-    if (ratePerSecond >= 1) {
-      return `${ratePerSecond.toFixed(2)} ${selectedToken.symbol}/second`;
-    }
-
-    if (ratePerSecond * 60 >= 1) {
-      return `${(ratePerSecond * 60).toFixed(2)} ${selectedToken.symbol}/minute`;
-    }
-
-    if (ratePerSecond * 3600 >= 1) {
-      return `${(ratePerSecond * 3600).toFixed(2)} ${selectedToken.symbol}/hour`;
-    }
-
-    return `${(ratePerSecond * 86400).toFixed(4)} ${selectedToken.symbol}/day`;
-  };
-
-  const getDurationInMinutes = () => {
-    switch (durationUnit) {
-      case 'seconds': return duration / 60;
-      case 'minutes': return duration;
-      case 'hours': return duration * 60;
-      case 'days': return duration * 24 * 60;
-      default: return duration;
-    }
-  };
 
   const renderMilestoneReleaseButtons = (stream: UIStream) => {
     if (!stream.milestones || stream.milestones.length === 0) return null;
@@ -489,9 +394,7 @@ const Streams = () => {
 
         <TabsContent value="active" className="mt-0">
           {isLoadingStreams ? (
-            <div className="flex justify-center items-center py-12">
-              <Loading size="lg" text="Loading streams..." />
-            </div>
+            <StreamListSkeleton count={4} />
           ) : activeStreams.length > 0 ? (
             <div className="space-y-4">
               {activeStreams.map((stream) => (
@@ -676,11 +579,7 @@ const Streams = () => {
                                 refetchStreams();
                               } catch (error) {
                                 console.error('Error canceling stream:', error);
-                                toast({
-                                  title: "Error Canceling Stream",
-                                  description: error instanceof Error ? error.message : "An unknown error occurred",
-                                  variant: "destructive"
-                                });
+                                // Error handling is done in the hook, so we don't need to show another toast here
                               }
                             }}
                           >
@@ -715,20 +614,13 @@ const Streams = () => {
                                   )
                                 );
 
-                                toast({
-                                  title: "Tokens Claimed",
-                                  description: "Successfully claimed tokens from the stream"
-                                });
+                                // Success toast is handled in the hook, no need to show another one here
 
                                 // Refetch to get updated streamed amount from blockchain
                                 refetchStreams();
                               } catch (error) {
                                 console.error('Error claiming tokens:', error);
-                                toast({
-                                  title: "Error Claiming Tokens",
-                                  description: error instanceof Error ? error.message : "An unknown error occurred",
-                                  variant: "destructive"
-                                });
+                                // Error toast is handled in the hook, no need to show another one here
                               }
                             }}
                           >
@@ -762,9 +654,7 @@ const Streams = () => {
 
         <TabsContent value="completed" className="mt-0">
           {isLoadingStreams ? (
-            <div className="flex justify-center items-center py-12">
-              <Loading size="lg" text="Loading streams..." />
-            </div>
+            <StreamListSkeleton count={3} />
           ) : completedStreams.length > 0 ? (
             <div className="space-y-4">
               {completedStreams.map((stream) => (
@@ -795,6 +685,7 @@ const Streams = () => {
                           status={StreamStatus[stream.status as keyof typeof StreamStatus]}
                           token={stream.token}
                           streamId={stream.id}
+                          withdrawn={stream.withdrawn?.toString() || '0'}
                         />
                         <div className="absolute top-0 right-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <InfoTooltip

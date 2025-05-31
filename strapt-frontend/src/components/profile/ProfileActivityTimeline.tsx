@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Check, Clock, X, ArrowUpRight, Download, ShieldCheck, Users, BarChart2, Gift } from 'lucide-react';
+import { Check, Clock, X, ArrowUpRight, Download, ShieldCheck, Users, BarChart2, Gift, ArrowDownLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfileActivity } from '@/hooks/use-profile-activity';
 import type { ProfileActivity } from '@/hooks/use-profile-activity';
@@ -32,7 +32,17 @@ const ProfileActivityTimeline = () => {
       return;
     }
 
-    const filtered = activities.filter(activity => activity.type === filter);
+    let filtered: ProfileActivity[];
+    if (filter === 'received') {
+      // Filter for received activities (claims, received transfers, etc.)
+      filtered = activities.filter(activity =>
+        activity.type === 'claim' ||
+        activity.title.toLowerCase().includes('received') ||
+        activity.title.toLowerCase().includes('claimed')
+      );
+    } else {
+      filtered = activities.filter(activity => activity.type === filter);
+    }
     setFilteredActivities(filtered);
   }, [activities, filter]);
 
@@ -93,6 +103,8 @@ const ProfileActivityTimeline = () => {
         return <ArrowUpRight className="h-5 w-5" />;
       case 'claim':
         return <ShieldCheck className="h-5 w-5" />;
+      case 'received':
+        return <ArrowDownLeft className="h-5 w-5" />;
       case 'pool':
         return <Users className="h-5 w-5" />;
       case 'stream':
@@ -173,6 +185,16 @@ const ProfileActivityTimeline = () => {
             )}
           >
             Drops
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('received')}
+            className={cn(
+              "text-xs px-3 py-1 rounded-full whitespace-nowrap",
+              filter === 'received' ? "bg-purple-600 text-white" : "bg-zinc-800 text-zinc-400"
+            )}
+          >
+            Received
           </button>
         </div>
       </CardHeader>

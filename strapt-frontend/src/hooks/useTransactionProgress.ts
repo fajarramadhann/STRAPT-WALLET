@@ -58,9 +58,15 @@ export function useTransactionProgress() {
   }, []);
 
   // Complete transaction
-  const completeTransaction = useCallback(() => {
+  const completeTransaction = useCallback((hash?: `0x${string}`) => {
     setProgress(prev => ({ ...prev, status: 'confirmed', progress: 100 }));
-    toast.success('Transaction confirmed');
+    toast.success('Transaction confirmed', {
+      description: hash ? `Transaction: ${hash}` : undefined,
+      action: hash ? {
+        label: 'View on Explorer',
+        onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${hash}`, '_blank')
+      } : undefined
+    });
   }, []);
 
   // Reset progress
@@ -94,4 +100,4 @@ export function useTransactionProgress() {
     isConfirming,
     isConfirmed
   };
-} 
+}

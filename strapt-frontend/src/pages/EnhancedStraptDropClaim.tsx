@@ -26,8 +26,30 @@ const EnhancedStraptDropClaim = () => {
   const { isConnected, address } = useXellarWallet();
   const { getDropInfo, claimDrop, hasAddressClaimed, isLoading, isClaiming } = useStraptDrop();
 
-  // Extract drop ID from URL
-  const dropId = location.pathname.split('/').pop() || '';
+  // Extract drop ID from URL - handle both path params and query params
+  const getDropIdFromUrl = () => {
+    // First try to get from path parameters (e.g., /strapt-drop/claim/0x123...)
+    const pathSegments = location.pathname.split('/');
+    const lastSegment = pathSegments[pathSegments.length - 1];
+
+    // Check if the last segment is a valid drop ID (starts with 0x and is 66 characters)
+    if (lastSegment && lastSegment.startsWith('0x') && lastSegment.length === 66) {
+      return lastSegment;
+    }
+
+    // If not found in path, try query parameters
+    const params = new URLSearchParams(location.search);
+    const queryDropId = params.get('id') || params.get('dropId');
+
+    // Validate query parameter drop ID
+    if (queryDropId && queryDropId.startsWith('0x') && queryDropId.length === 66) {
+      return queryDropId;
+    }
+
+    return '';
+  };
+
+  const dropId = getDropIdFromUrl();
 
   // State
   const [dropInfo, setDropInfo] = useState<DropInfo | null>(null);
@@ -41,7 +63,14 @@ const EnhancedStraptDropClaim = () => {
   // Load drop info
   useEffect(() => {
     const loadDropInfo = async () => {
-      if (!dropId) return;
+      // Validate drop ID before making any calls
+      if (!dropId || !dropId.startsWith('0x') || dropId.length !== 66) {
+        if (dropId && dropId !== '') {
+          console.error('Invalid drop ID format:', dropId);
+          setError('Invalid drop ID format');
+        }
+        return;
+      }
 
       try {
         const info = await getDropInfo(dropId);
@@ -130,7 +159,18 @@ const EnhancedStraptDropClaim = () => {
 
   // Handle claim
   const handleClaim = async () => {
+    // Validate inputs before proceeding
     if (!dropId || !dropInfo || !isConnected) return;
+
+    // Additional validation for drop ID format
+    if (!dropId.startsWith('0x') || dropId.length !== 66) {
+      toast({
+        title: 'Invalid Drop ID',
+        description: 'The drop ID format is invalid',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
       const amount = await claimDrop(dropId);
@@ -148,10 +188,11 @@ const EnhancedStraptDropClaim = () => {
         setShowSuccessAnimation(false);
       }, 5000);
 
-      toast({
-        title: 'Success',
-        description: 'Successfully claimed tokens!'
-      });
+      // The toast with transaction hash is already shown by the hook
+      // toast({
+      //   title: 'Success',
+      //   description: 'Successfully claimed tokens!'
+      // });
     } catch (error) {
       console.error('Error claiming drop:', error);
 

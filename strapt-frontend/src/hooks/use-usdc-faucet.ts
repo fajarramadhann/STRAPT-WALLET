@@ -252,7 +252,11 @@ export function useUSDCFaucet() {
 
       if (receipt.status === 'success') {
         toast.success('USDC tokens claimed successfully', {
-          description: `You've claimed ${formatUnits(faucetInfo.claimAmount, USDC_DECIMALS)} USDC from the faucet`
+          description: `You've claimed ${formatUnits(faucetInfo.claimAmount, USDC_DECIMALS)} USDC from the faucet. Transaction: ${hash}`,
+          action: {
+            label: 'View on Explorer',
+            onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${hash}`, '_blank')
+          }
         });
 
         // Reload data after successful claim

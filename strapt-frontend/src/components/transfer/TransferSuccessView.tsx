@@ -6,7 +6,7 @@ import { useTransferContext } from '@/contexts/TransferContext';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
-import confetti from 'canvas-confetti';
+import { useConfetti } from '@/hooks/use-confetti';
 
 interface TransferSuccessViewProps {
   onReset: () => void;
@@ -26,43 +26,14 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
     shortenTransferId,
   } = useTransferContext();
 
+  const { triggerSuccessConfetti } = useConfetti();
+
   // Trigger confetti effect when component mounts
   useEffect(() => {
-    triggerConfetti();
-  }, []);
+    triggerSuccessConfetti();
+  }, [triggerSuccessConfetti]);
 
-  // Function to trigger confetti
-  const triggerConfetti = () => {
-    const duration = 3 * 1000;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
 
-    function randomInRange(min: number, max: number) {
-      return Math.random() * (max - min) + min;
-    }
-
-    const interval = setInterval(() => {
-      const timeLeft = animationEnd - Date.now();
-
-      if (timeLeft <= 0) {
-        return clearInterval(interval);
-      }
-
-      const particleCount = 50 * (timeLeft / duration);
-
-      // Since particles fall down, start a bit higher than random
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: randomInRange(0, 0.2) }
-      });
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: randomInRange(0, 0.2) }
-      });
-    }, 250);
-  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(transferLink);
@@ -199,12 +170,12 @@ const TransferSuccessView = ({ onReset, onShowQR }: TransferSuccessViewProps) =>
               )}
 
               {/* Display claim instructions */}
-              <div className="mt-3 border-t border-border pt-3">
+              {/* <div className="mt-3 border-t border-border pt-3">
                 <p className="text-sm text-muted-foreground mb-1">Claim Instructions:</p>
                 <p className="text-sm">
                   Recipient should visit: <span className="font-medium">{window.location.origin}/app/claims</span>
                 </p>
-              </div>
+              </div> */}
             </motion.div>
           )}
 

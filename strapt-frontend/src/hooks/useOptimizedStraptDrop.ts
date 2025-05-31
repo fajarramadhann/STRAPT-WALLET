@@ -66,7 +66,7 @@ export function useOptimizedStraptDrop() {
     isLoadingUserDrops: false,
     currentDropId: null as string | null,
   });
-  
+
   // Use a single state object to reduce re-renders
   const [userDrops, setUserDrops] = useState<{id: string; info: DropInfo}[]>([]);
   const [tokenMetadata, setTokenMetadata] = useState<{
@@ -76,7 +76,7 @@ export function useOptimizedStraptDrop() {
     symbols: {},
     decimals: {}
   });
-  
+
   const { address, isConnected } = useXellarWallet();
   const { tokens } = useTokenBalances();
 
@@ -105,14 +105,19 @@ export function useOptimizedStraptDrop() {
 
   // Get drop info with caching
   const getDropInfo = useCallback(async (dropId: string): Promise<DropInfo> => {
+    // Validate drop ID format before making the contract call
+    if (!dropId || !dropId.startsWith('0x') || dropId.length !== 66) {
+      throw new Error(`Invalid drop ID format: ${dropId}. Expected a 66-character hex string starting with 0x.`);
+    }
+
     // Check cache first
     const now = Date.now();
     const cachedData = dropInfoCache.get(dropId);
-    
+
     if (cachedData && (now - cachedData.timestamp < CACHE_EXPIRY)) {
       return cachedData.info;
     }
-    
+
     try {
       const result = await readContract(config, {
         address: STRAPT_DROP_ADDRESS,
@@ -134,10 +139,10 @@ export function useOptimizedStraptDrop() {
         isActive: result[9] as boolean,
         amountPerRecipient: result[6] ? 0n : (result[2] as bigint) / (result[5] as bigint), // Calculate if fixed distribution
       };
-      
+
       // Update cache
       dropInfoCache.set(dropId, { info: dropInfo, timestamp: now });
-      
+
       return dropInfo;
     } catch (error) {
       console.error('Error getting drop info:', error);
@@ -172,7 +177,7 @@ export function useOptimizedStraptDrop() {
       }
 
       const eventsData = await response.json();
-      
+
       // Filter events for this user's address
       const userEvents = eventsData.items.filter((event: any) => {
         try {
@@ -215,7 +220,7 @@ export function useOptimizedStraptDrop() {
 
       // Filter out null values
       const validDrops = userDrops.filter(drop => drop !== null) as {id: string; info: DropInfo}[];
-      
+
       // Update token metadata for all drops
       const symbols: {[key: string]: string} = {};
       const decimals: {[key: string]: number} = {};
@@ -240,7 +245,7 @@ export function useOptimizedStraptDrop() {
       // Update state
       setUserDrops(validDrops);
       setTokenMetadata({ symbols, decimals });
-      
+
       return validDrops;
     } catch (error) {
       console.error('Error getting user created drops:', error);
@@ -254,6 +259,11 @@ export function useOptimizedStraptDrop() {
   const refundExpiredDrop = useCallback(async (dropId: string) => {
     try {
       updateTransactionState({ isLoading: true, isRefunding: true });
+
+      // Validate drop ID format before making any calls
+      if (!dropId || !dropId.startsWith('0x') || dropId.length !== 66) {
+        throw new Error(`Invalid drop ID format: ${dropId}. Expected a 66-character hex string starting with 0x.`);
+      }
 
       if (!isConnected || !address) {
         toast.error("Please connect your wallet");
@@ -286,8 +296,14 @@ export function useOptimizedStraptDrop() {
 
       // Clear the cache for this drop
       dropInfoCache.delete(dropId);
-      
-      toast.success('Successfully refunded expired STRAPT Drop');
+
+      toast.success('Successfully refunded expired STRAPT Drop', {
+        description: `Transaction: ${refundHash}`,
+        action: {
+          label: 'View on Explorer',
+          onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${refundHash}`, '_blank')
+        }
+      });
       return refundReceipt;
     } catch (error) {
       console.error('Error refunding drop:', error);
@@ -298,8 +314,8 @@ export function useOptimizedStraptDrop() {
   }, [address, isConnected, updateTransactionState]);
 
   // Memoized values and derived state
-  const { 
-    isLoading, isApproving, isCreating, isClaiming, isRefunding, isLoadingUserDrops, currentDropId 
+  const {
+    isLoading, isApproving, isCreating, isClaiming, isRefunding, isLoadingUserDrops, currentDropId
   } = transactionState;
 
   return {
@@ -313,12 +329,12 @@ export function useOptimizedStraptDrop() {
     currentDropId,
     userDrops,
     tokenMetadata,
-    
+
     // Actions
     getUserCreatedDrops,
     refundExpiredDrop,
     getDropInfo,
-    
+
     // Helpers
     getTokenAddress,
     getTokenDecimals,

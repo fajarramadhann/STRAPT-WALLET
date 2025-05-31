@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PlusCircle, BarChart2, CheckCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,16 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import { usePaymentStream, StreamStatus } from '@/hooks/use-payment-stream';
 import { useXellarWallet } from '@/hooks/use-xellar-wallet';
-import { Loading } from '@/components/ui/loading';
 import InfoTooltip from '@/components/InfoTooltip';
 import EnhancedStreamCard from '@/components/streams/EnhancedStreamCard';
 import type { UIStream } from '@/components/streams/EnhancedStreamCard';
 import StreamForm from '@/components/streams/StreamForm';
 import type { Milestone } from '@/components/MilestoneInput';
 import { useTokenBalances } from '@/hooks/use-token-balances';
-import { Link } from 'react-router-dom';
+
 import { useStreamsData } from '@/services/StreamsDataService';
 import { useDataContext } from '@/providers/DataProvider';
+import { EnhancedStreamListSkeleton } from '@/components/skeletons/EnhancedStreamCardSkeleton';
 
 const AutoRefreshStreams = () => {
   const [showCreate, setShowCreate] = useState(false);
@@ -260,9 +260,7 @@ const AutoRefreshStreams = () => {
 
         <TabsContent value="active" className="space-y-4">
           {isLoadingStreams ? (
-            <div className="flex justify-center items-center h-32">
-              <Loading size="lg" />
-            </div>
+            <EnhancedStreamListSkeleton count={4} />
           ) : activeStreams.length === 0 ? (
             <div className="text-center py-12 border border-dashed rounded-lg">
               <div className="flex justify-center mb-3">
@@ -290,16 +288,22 @@ const AutoRefreshStreams = () => {
                   stream={stream}
                   onPause={async () => {
                     await pauseStream(stream.id);
+                    // Force refresh of streams data
+                    refetchStreams();
                     refreshAllData();
                     return Promise.resolve();
                   }}
                   onResume={async () => {
                     await resumeStream(stream.id);
+                    // Force refresh of streams data
+                    refetchStreams();
                     refreshAllData();
                     return Promise.resolve();
                   }}
                   onCancel={async () => {
                     await cancelStream(stream.id);
+                    // Force refresh of streams data
+                    refetchStreams();
                     refreshAllData();
                     return Promise.resolve();
                   }}
@@ -310,6 +314,8 @@ const AutoRefreshStreams = () => {
                   }}
                   onWithdraw={async () => {
                     await withdrawFromStream(stream.id);
+                    // Force refresh of streams data
+                    refetchStreams();
                     refreshAllData();
                     return Promise.resolve();
                   }}
@@ -322,9 +328,7 @@ const AutoRefreshStreams = () => {
 
         <TabsContent value="completed" className="space-y-4">
           {isLoadingStreams ? (
-            <div className="flex justify-center items-center h-32">
-              <Loading size="lg" />
-            </div>
+            <EnhancedStreamListSkeleton count={3} />
           ) : completedStreams.length === 0 ? (
             <div className="text-center py-12 border border-dashed rounded-lg">
               <div className="flex justify-center mb-3">
@@ -343,6 +347,8 @@ const AutoRefreshStreams = () => {
                   stream={stream}
                   onWithdraw={async () => {
                     await withdrawFromStream(stream.id);
+                    // Force refresh of streams data
+                    refetchStreams();
                     refreshAllData();
                     return Promise.resolve();
                   }}

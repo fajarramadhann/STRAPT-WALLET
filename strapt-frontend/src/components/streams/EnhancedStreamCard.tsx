@@ -27,6 +27,7 @@ export interface UIStream {
   endTime: number; // Unix timestamp in seconds
   isRecipient: boolean; // Whether the current user is the recipient
   isSender: boolean; // Whether the current user is the sender
+  withdrawn?: number; // Amount already withdrawn from contract
 }
 
 interface EnhancedStreamCardProps {
@@ -40,9 +41,9 @@ interface EnhancedStreamCardProps {
 }
 
 // Helper functions
-const getStatusIcon = (status: 'active' | 'paused' | 'completed' | 'canceled', streamed: number = 1) => {
+const getStatusIcon = (status: 'active' | 'paused' | 'completed' | 'canceled', claimableAmount: number = 1) => {
   // For completed streams with no tokens left to claim, show a check mark
-  if (status === 'completed' && streamed <= 0) {
+  if (status === 'completed' && claimableAmount <= 0) {
     return <CheckCircle className="h-5 w-5 text-white" />;
   }
 
@@ -65,9 +66,9 @@ const getStatusBadgeVariant = (status: 'active' | 'paused' | 'completed' | 'canc
   }
 };
 
-const getProgressColor = (status: 'active' | 'paused' | 'completed' | 'canceled', streamed: number = 1) => {
+const getProgressColor = (status: 'active' | 'paused' | 'completed' | 'canceled', claimableAmount: number = 1) => {
   // For completed streams with no tokens left to claim, show a green progress bar
-  if (status === 'completed' && streamed <= 0) {
+  if (status === 'completed' && claimableAmount <= 0) {
     return 'bg-green-500'; // Bright green for fully claimed
   }
 
@@ -161,7 +162,11 @@ const EnhancedStreamCard = memo(({
   const isCompleted = stream.status === 'completed';
   const isCanceled = stream.status === 'canceled';
   const isFinished = isCompleted || isCanceled;
-  const canClaim = (stream.isRecipient && stream.streamed > 0);
+
+  // Calculate claimable amount (streamed - withdrawn)
+  const claimableAmount = stream.streamed - (stream.withdrawn || 0);
+  const canClaim = (stream.isRecipient && claimableAmount > 0 && !isFinished);
+
   const streamPercentage = (stream.streamed / stream.total) * 100;
   const isStreamEnded = now >= stream.endTime;
   const isStreamStarted = now >= stream.startTime;
@@ -214,11 +219,8 @@ const EnhancedStreamCard = memo(({
       });
     } catch (error) {
       console.error('Error canceling stream:', error);
-      toast({
-        title: "Error",
-        description: "Failed to cancel the stream. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is done in the hook, so we don't need to show another toast here
+      // The hook will show appropriate error messages based on the specific error type
     }
   };
 
@@ -226,17 +228,10 @@ const EnhancedStreamCard = memo(({
     if (!onWithdraw) return;
     try {
       await onWithdraw(stream.id);
-      toast({
-        title: "Tokens Claimed",
-        description: "Successfully claimed tokens from the stream.",
-      });
+      // Success toast is handled in the hook, no need to show another one here
     } catch (error) {
       console.error('Error withdrawing from stream:', error);
-      toast({
-        title: "Error",
-        description: "Failed to claim tokens. Please try again.",
-        variant: "destructive",
-      });
+      // Error toast is handled in the hook, no need to show another one here
     }
   };
 
@@ -286,8 +281,13 @@ const EnhancedStreamCard = memo(({
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <Badge variant={getStatusBadgeVariant(stream.status)} className="capitalize">
-                {getStatusIcon(stream.status, stream.streamed)}
-                <span className="ml-1">{stream.status}</span>
+                {getStatusIcon(stream.status, claimableAmount)}
+                <span className="ml-1">
+                  {stream.status === 'active' && 'Streaming'}
+                  {stream.status === 'paused' && 'Paused'}
+                  {stream.status === 'completed' && 'Completed'}
+                  {stream.status === 'canceled' && 'Canceled'}
+                </span>
               </Badge>
 
               {stream.isRecipient && (
@@ -331,12 +331,13 @@ const EnhancedStreamCard = memo(({
               token={stream.token}
               streamId={stream.id}
               onStreamComplete={onStreamComplete}
+              withdrawn={stream.withdrawn?.toString() || '0'}
             />
 
             <div className="relative">
               <div className="relative h-4 w-full overflow-hidden rounded-full bg-secondary/30">
                 <div
-                  className={`h-full transition-all duration-300 ${getProgressColor(stream.status, stream.streamed)}`}
+                  className={`h-full transition-all duration-300 ${getProgressColor(stream.status, claimableAmount)}`}
                   style={{ width: `${(stream.streamed / stream.total) * 100}%` }}
                 />
               </div>
@@ -380,32 +381,53 @@ const EnhancedStreamCard = memo(({
 
       <CardFooter className="pt-0">
         {/* Card Actions */}
-        {stream.isSender && !isFinished && !isStreamEnded && streamPercentage < 99.9 && (
-          <div className="grid grid-cols-2 gap-2 w-full">
+        {stream.isSender && !isFinished && (
+          <div className="space-y-2 w-full">
+            {/* Primary Action */}
             {isActive ? (
-              <>
-                <Button variant="outline" size="sm" onClick={handlePause} disabled={!onPause}>
-                  <Pause className="h-4 w-4 mr-1" /> Pause
-                </Button>
-                <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!onCancel}>
-                  <StopCircle className="h-4 w-4 mr-1" /> Cancel
-                </Button>
-              </>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative group">
+                  <Button variant="outline" size="sm" onClick={handlePause} disabled={!onPause} className="w-full">
+                    <Pause className="h-4 w-4 mr-1" /> Pause
+                  </Button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                    Temporarily stop the stream. Tokens will stop flowing to the recipient.
+                  </div>
+                </div>
+                <div className="relative group">
+                  <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!onCancel} className="w-full">
+                    <StopCircle className="h-4 w-4 mr-1" /> Cancel
+                  </Button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                    Cancel the stream. Remaining tokens will be returned to you, and streamed tokens can be claimed by the recipient.
+                  </div>
+                </div>
+              </div>
             ) : isPaused ? (
-              <>
-                <Button variant="default" size="sm" onClick={handleResume} disabled={!onResume}>
-                  <Play className="h-4 w-4 mr-1" /> Resume
-                </Button>
-                <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!onCancel}>
-                  <StopCircle className="h-4 w-4 mr-1" /> Cancel
-                </Button>
-              </>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative group">
+                  <Button variant="default" size="sm" onClick={handleResume} disabled={!onResume} className="w-full">
+                    <Play className="h-4 w-4 mr-1" /> Resume
+                  </Button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                    Resume the stream. Tokens will continue flowing to the recipient.
+                  </div>
+                </div>
+                <div className="relative group">
+                  <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!onCancel} className="w-full">
+                    <StopCircle className="h-4 w-4 mr-1" /> Cancel
+                  </Button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+                    Cancel the stream. Remaining tokens will be returned to you, and streamed tokens can be claimed by the recipient.
+                  </div>
+                </div>
+              </div>
             ) : null}
           </div>
         )}
 
         {/* Show info message when stream is complete but recipient hasn't claimed yet */}
-        {stream.isSender && (isStreamEnded || streamPercentage >= 99.9) && stream.streamed > 0 && !isFinished && (
+        {stream.isSender && (isStreamEnded || streamPercentage >= 99.9) && claimableAmount > 0 && !isFinished && (
           <div className="w-full text-center text-sm text-primary bg-primary/10 p-2 rounded-md border border-primary/20">
             <Info className="h-4 w-4 inline-block mr-1" />
             Waiting for recipient to claim tokens
@@ -413,18 +435,23 @@ const EnhancedStreamCard = memo(({
         )}
 
         {stream.isRecipient && canClaim && (
-          <Button
-            variant="default"
-            className="w-full"
-            onClick={handleWithdraw}
-            disabled={!onWithdraw || stream.streamed <= 0}
-          >
-            <CircleDollarSign className="h-4 w-4 mr-1" />
-            Claim {stream.streamed} {stream.token}
-          </Button>
+          <div className="relative group w-full">
+            <Button
+              variant="default"
+              className="w-full bg-green-600 hover:bg-green-700"
+              onClick={handleWithdraw}
+              disabled={!onWithdraw || claimableAmount <= 0}
+            >
+              <CircleDollarSign className="h-4 w-4 mr-1" />
+              Claim {claimableAmount.toFixed(stream.token === 'IDRX' ? 2 : 6)} {stream.token}
+            </Button>
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
+              Claim the tokens that have been streamed to you. You can claim at any time.
+            </div>
+          </div>
         )}
 
-        {isFinished && stream.streamed <= 0 && (
+        {(isFinished || (isStreamEnded && claimableAmount <= 0)) && (
           <div className="w-full text-center text-sm text-green-600 dark:text-green-400 font-medium py-1">
             <CheckCircle className="h-4 w-4 inline-block mr-1 text-white" /> All tokens have been claimed
           </div>

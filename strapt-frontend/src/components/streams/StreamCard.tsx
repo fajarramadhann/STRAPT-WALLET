@@ -24,6 +24,7 @@ export interface UIStream {
   endTime: number; // Unix timestamp in seconds
   isRecipient: boolean; // Whether the current user is the recipient
   isSender: boolean; // Whether the current user is the sender
+  withdrawn?: number; // Amount already withdrawn from contract
 }
 
 interface StreamCardProps {
@@ -37,9 +38,9 @@ interface StreamCardProps {
 }
 
 // Helper functions
-const getStatusIcon = (status: 'active' | 'paused' | 'completed' | 'canceled', streamed: number = 1) => {
+const getStatusIcon = (status: 'active' | 'paused' | 'completed' | 'canceled', claimableAmount: number = 1) => {
   // For completed streams with no tokens left to claim, show a check mark
-  if (status === 'completed' && streamed <= 0) {
+  if (status === 'completed' && claimableAmount <= 0) {
     return <CheckCircle className="h-4 w-4 text-green-500" />;
   }
 
@@ -52,9 +53,9 @@ const getStatusIcon = (status: 'active' | 'paused' | 'completed' | 'canceled', s
   }
 };
 
-const getProgressColor = (status: 'active' | 'paused' | 'completed' | 'canceled', streamed: number = 1) => {
+const getProgressColor = (status: 'active' | 'paused' | 'completed' | 'canceled', claimableAmount: number = 1) => {
   // For completed streams with no tokens left to claim, show a green progress bar
-  if (status === 'completed' && streamed <= 0) {
+  if (status === 'completed' && claimableAmount <= 0) {
     return 'bg-green-500'; // Bright green for fully claimed
   }
 
@@ -105,6 +106,9 @@ const StreamCard = memo(({
 }: StreamCardProps) => {
   const { toast } = useToast();
 
+  // Calculate claimable amount (streamed - withdrawn)
+  const claimableAmount = stream.streamed - (stream.withdrawn || 0);
+
   const renderMilestoneReleaseButtons = () => {
     if (!stream.milestones || stream.milestones.length === 0) return null;
 
@@ -145,7 +149,7 @@ const StreamCard = memo(({
         <div className="flex justify-between">
           <CardTitle className="text-base">{formatAddress(stream.recipient)}</CardTitle>
           <div className="flex items-center gap-1 text-sm relative group">
-            {getStatusIcon(stream.status, stream.streamed)}
+            {getStatusIcon(stream.status, claimableAmount)}
             <span className="capitalize flex items-center gap-1">
               {stream.status}
               <span
@@ -160,8 +164,8 @@ const StreamCard = memo(({
             <div className="absolute bottom-full right-0 mb-2 w-56 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
               {stream.status === 'active' && "Tokens are actively streaming to the recipient."}
               {stream.status === 'paused' && "Stream is temporarily paused. No tokens are being streamed."}
-              {stream.status === 'completed' && stream.streamed <= 0 && "Stream has completed and all tokens have been claimed by the recipient."}
-              {stream.status === 'completed' && stream.streamed > 0 && "Stream has completed. All tokens have been streamed but not yet fully claimed."}
+              {stream.status === 'completed' && claimableAmount <= 0 && "Stream has completed and all tokens have been claimed by the recipient."}
+              {stream.status === 'completed' && claimableAmount > 0 && "Stream has completed. All tokens have been streamed but not yet fully claimed."}
               {stream.status === 'canceled' && "Stream was canceled. Remaining tokens returned to sender."}
             </div>
           </div>
@@ -179,6 +183,7 @@ const StreamCard = memo(({
               token={stream.token}
               streamId={stream.id}
               onStreamComplete={onStreamComplete}
+              withdrawn={stream.withdrawn?.toString() || '0'}
             />
             <div className="absolute top-0 right-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <InfoTooltip
@@ -221,7 +226,7 @@ const StreamCard = memo(({
             </div>
             <div className="relative h-4 w-full overflow-hidden rounded-full bg-secondary/30">
               <div
-                className={`h-full transition-all duration-300 ${getProgressColor(stream.status, stream.streamed)}`}
+                className={`h-full transition-all duration-300 ${getProgressColor(stream.status, claimableAmount)}`}
                 style={{ width: `${(stream.streamed / stream.total) * 100}%` }}
               />
             </div>
@@ -265,20 +270,20 @@ const StreamCard = memo(({
           // Sender controls
           <div className="grid grid-cols-2 gap-2 w-full">
             {/* Check if stream is completed or has no tokens to claim (fully claimed) */}
-            {stream.status === 'completed' || stream.streamed <= 0 ? (
+            {stream.status === 'completed' || claimableAmount <= 0 ? (
               <div className="col-span-2 text-center">
                 <div className="relative group">
                   <Button
-                    variant={stream.streamed <= 0 ? "success" : "outline"}
+                    variant={claimableAmount <= 0 ? "success" : "outline"}
                     size="sm"
                     className="w-full"
                     disabled={false}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
-                    {stream.streamed <= 0 ? 'Fully Claimed by Recipient' : 'Stream Completed'}
+                    {claimableAmount <= 0 ? 'Fully Claimed by Recipient' : 'Stream Completed'}
                   </Button>
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-56 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
-                    {stream.streamed <= 0
+                    {claimableAmount <= 0
                       ? 'The recipient has claimed all tokens from this stream. No further action is needed.'
                       : 'This stream has completed. The recipient can claim the remaining tokens at any time.'}
                   </div>
@@ -334,7 +339,7 @@ const StreamCard = memo(({
               </div>
             )}
             {/* Only show Cancel button if stream is not completed and not fully claimed */}
-            {stream.status !== 'completed' && stream.streamed > 0 && (
+            {stream.status !== 'completed' && claimableAmount > 0 && (
               <div className="relative group">
                 <Button
                   variant="outline"
@@ -344,11 +349,7 @@ const StreamCard = memo(({
                       await onCancel(stream.id);
                     } catch (error) {
                       console.error('Error canceling stream:', error);
-                      toast({
-                        title: "Error Canceling Stream",
-                        description: error instanceof Error ? error.message : "An unknown error occurred",
-                        variant: "destructive"
-                      });
+                      // Error handling is done in the hook, so we don't need to show another toast here
                     }
                   }}
                 >
@@ -365,12 +366,12 @@ const StreamCard = memo(({
           <div className="w-full">
             <div className="relative group">
               <Button
-                variant={stream.streamed <= 0 ? "success" : "default"}
+                variant={claimableAmount <= 0 ? "success" : "default"}
                 size="sm"
                 className="w-full"
                 disabled={false}
                 onClick={async () => {
-                  if (stream.streamed <= 0) {
+                  if (claimableAmount <= 0) {
                     // Do nothing for already claimed streams
                     return;
                   }
@@ -385,36 +386,21 @@ const StreamCard = memo(({
                   try {
                     // Call the withdraw function
                     await onWithdraw(stream.id);
-
-                    // Show success toast (no need to dismiss previous toast as it will auto-dismiss)
-                    toast({
-                      title: "Tokens Claimed Successfully",
-                      description: "Your tokens have been successfully claimed!",
-                      variant: "success"
-                    });
-
-                    // Force refresh the UI to show the updated stream status
-                    // This will be handled by the parent component through the onWithdraw callback
+                    // Success toast is handled in the hook, no need to show another one here
                   } catch (error) {
                     console.error('Error claiming tokens:', error);
-
-                    // Show error toast
-                    toast({
-                      title: "Error Claiming Tokens",
-                      description: error instanceof Error ? error.message : "An unknown error occurred",
-                      variant: "destructive"
-                    });
+                    // Error toast is handled in the hook, no need to show another one here
                   }
                 }}
               >
-                {stream.streamed <= 0 ?
+                {claimableAmount <= 0 ?
                   <CheckCircle className="h-4 w-4 mr-1" /> :
                   <CircleDollarSign className="h-4 w-4 mr-1" />
                 }
-                {stream.streamed <= 0 ? 'Already Claimed' : 'Claim Tokens'}
+                {claimableAmount <= 0 ? 'Already Claimed' : `Claim ${claimableAmount.toFixed(stream.token === 'IDRX' ? 2 : 6)} ${stream.token}`}
               </Button>
               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-50">
-                {stream.streamed <= 0
+                {claimableAmount <= 0
                   ? 'You have already claimed all available tokens from this stream.'
                   : 'Withdraw tokens that have been streamed to you so far. Once fully claimed, the stream will be marked as completed.'}
               </div>

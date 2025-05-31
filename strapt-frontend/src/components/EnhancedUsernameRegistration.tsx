@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { motion, AnimatePresence } from 'framer-motion';
-import confetti from 'canvas-confetti';
+import { useConfetti } from '@/hooks/use-confetti';
 
 interface UsernameRegistrationProps {
   onComplete: () => void;
@@ -22,6 +22,7 @@ const EnhancedUsernameRegistration = ({ onComplete }: UsernameRegistrationProps)
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { triggerCelebrationConfetti } = useConfetti();
 
   // Focus input on mount
   useEffect(() => {
@@ -91,7 +92,7 @@ const EnhancedUsernameRegistration = ({ onComplete }: UsernameRegistrationProps)
     // Show success animation after a short delay
     setTimeout(() => {
       setShowSuccessAnimation(true);
-      triggerConfetti();
+      triggerCelebrationConfetti();
     }, 300);
   };
 
@@ -103,38 +104,7 @@ const EnhancedUsernameRegistration = ({ onComplete }: UsernameRegistrationProps)
     onComplete();
   };
 
-  // Function to trigger confetti
-  const triggerConfetti = () => {
-    const duration = 3 * 1000;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
 
-    function randomInRange(min: number, max: number) {
-      return Math.random() * (max - min) + min;
-    }
-
-    const interval = setInterval(() => {
-      const timeLeft = animationEnd - Date.now();
-
-      if (timeLeft <= 0) {
-        return clearInterval(interval);
-      }
-
-      const particleCount = 50 * (timeLeft / duration);
-
-      // Since particles fall down, start a bit higher than random
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: randomInRange(0, 0.2) }
-      });
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: randomInRange(0, 0.2) }
-      });
-    }, 250);
-  };
 
   return (
     <Card className="border-primary/20 shadow-lg overflow-hidden">

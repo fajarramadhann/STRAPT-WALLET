@@ -41,6 +41,7 @@ const StraptDrop = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [dropLink, setDropLink] = useState('');
+  const [transactionHash, setTransactionHash] = useState('');
 
   // Validation
   const [errors, setErrors] = useState<{
@@ -117,15 +118,26 @@ const StraptDrop = () => {
       }
 
       // If we got here, the drop was created successfully
-      console.log('Drop created successfully with ID:', result);
+      console.log('Drop created successfully:', result);
+
+      // Extract dropId and transactionHash from result
+      const dropId = typeof result === 'string' ? result : result.dropId;
+      const txHash = typeof result === 'string' ? '' : result.transactionHash;
 
       // Generate the drop link
       const baseUrl = window.location.origin;
-      const dropLink = `${baseUrl}/app/strapt-drop/claim/${result}`;
+      const dropLink = `${baseUrl}/app/strapt-drop/claim/${dropId}`;
       setDropLink(dropLink);
+      setTransactionHash(txHash);
 
-      // Show success toast and dialog
-      toast.success('STRAPT Drop created successfully!');
+      // Show success toast with transaction hash
+      toast.success('STRAPT Drop created successfully!', {
+        description: txHash ? `Transaction: ${txHash}` : undefined,
+        action: txHash ? {
+          label: 'View on Explorer',
+          onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${txHash}`, '_blank')
+        } : undefined
+      });
       setShowSuccess(true);
     } catch (error) {
       // Only show error toast if it's not a user rejection
@@ -391,6 +403,25 @@ const StraptDrop = () => {
                 Copy
               </Button>
             </div>
+            {transactionHash && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Transaction Hash</Label>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    readOnly
+                    value={transactionHash}
+                    className="flex-1 text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(`https://sepolia-blockscout.lisk.com/tx/${transactionHash}`, '_blank')}
+                  >
+                    View
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex justify-center">
               <Button
                 variant="outline"

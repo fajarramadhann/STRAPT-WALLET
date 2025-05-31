@@ -42,6 +42,7 @@ export interface Stream {
   endTime: number;
   status: StreamStatus;
   milestones: Milestone[];
+  withdrawn?: string; // Track amount actually withdrawn from contract
 }
 
 // Get contract address from config
@@ -55,7 +56,7 @@ const IDRX_ADDRESS = contractConfig.PaymentStream.supportedTokens.IDRX as `0x${s
 const streamCache = new Map<string, { data: Stream; timestamp: number }>();
 const CACHE_TTL = 300000; // 5 minutes cache TTL (increased from 1 minute)
 const STREAM_FETCH_INTERVAL = 120000; // 2 minutes between stream updates (increased from 30 seconds)
-const UI_UPDATE_INTERVAL = 5000; // 5 seconds between UI updates
+const UI_UPDATE_INTERVAL = 1000; // 1 second between UI updates for real-time feel
 let lastRpcCallTime = 0;
 const RPC_RATE_LIMIT = 1000; // Minimum time between RPC calls in ms (increased from 500ms)
 // Singleton public client instance with proper typing
@@ -485,6 +486,10 @@ export function usePaymentStream() {
       const receipt = await waitForTransactionReceipt(config, { hash });
       console.log('Stream pause transaction confirmed:', receipt);
 
+      // Clear the stream from cache to force a fresh fetch
+      streamCache.delete(streamId);
+
+      toast.success('Stream paused successfully');
       return hash;
     } catch (error) {
       console.error('Error pausing stream:', error);
@@ -529,6 +534,10 @@ export function usePaymentStream() {
       const receipt = await waitForTransactionReceipt(config, { hash });
       console.log('Stream resume transaction confirmed:', receipt);
 
+      // Clear the stream from cache to force a fresh fetch
+      streamCache.delete(streamId);
+
+      toast.success('Stream resumed successfully');
       return hash;
     } catch (error) {
       console.error('Error resuming stream:', error);
@@ -573,10 +582,33 @@ export function usePaymentStream() {
       const receipt = await waitForTransactionReceipt(config, { hash });
       console.log('Stream cancel transaction confirmed:', receipt);
 
+      // Clear the stream from cache to force a fresh fetch
+      streamCache.delete(streamId);
+
+      toast.success('Stream canceled successfully');
       return hash;
     } catch (error) {
       console.error('Error canceling stream:', error);
-      toast.error('Failed to cancel stream');
+
+      // Handle specific error cases
+      if (error instanceof Error) {
+        if (error.message.includes('0xe450d38c') || error.message.includes('ERC20InsufficientBalance')) {
+          toast.error('Stream has insufficient balance. Some tokens may have already been withdrawn.');
+        } else if (error.message.includes('StreamNotFound')) {
+          toast.error('Stream not found');
+        } else if (error.message.includes('NotStreamSender')) {
+          toast.error('Only the stream creator can cancel this stream');
+        } else if (error.message.includes('StreamAlreadyCompleted')) {
+          toast.error('Stream has already been completed');
+        } else if (error.message.includes('StreamAlreadyCanceled')) {
+          toast.error('Stream has already been canceled');
+        } else {
+          toast.error('Failed to cancel stream');
+        }
+      } else {
+        toast.error('Failed to cancel stream');
+      }
+
       throw error;
     } finally {
       setIsLoading(false);
@@ -620,6 +652,16 @@ export function usePaymentStream() {
       const receipt = await waitForTransactionReceipt(config, { hash });
       console.log('Milestone release transaction confirmed:', receipt);
 
+      // Clear the stream from cache to force a fresh fetch
+      streamCache.delete(streamId);
+
+      toast.success('Milestone released successfully', {
+        description: `Transaction: ${hash}`,
+        action: {
+          label: 'View on Explorer',
+          onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${hash}`, '_blank')
+        }
+      });
       return hash;
     } catch (error) {
       console.error('Error releasing milestone:', error);
@@ -691,6 +733,34 @@ export function usePaymentStream() {
       const tokenSymbol = getTokenSymbol(streamData[2]);
       const decimals = getTokenDecimals(tokenSymbol);
 
+      // Calculate the real-time streamed amount
+      const currentTime = Math.floor(Date.now() / 1000);
+      const startTime = Number(streamData[5]);
+      const endTime = Number(streamData[6]);
+      const totalAmount = Number(formatUnits(streamData[3], decimals));
+      const contractStreamed = Number(formatUnits(streamData[4], decimals));
+      const status = Number(streamData[7]) as StreamStatus;
+
+      let actualStreamed = contractStreamed;
+
+      // If the stream is active, calculate real-time streamed amount
+      if (status === StreamStatus.Active) {
+        if (currentTime >= endTime) {
+          // Stream should be completed
+          actualStreamed = totalAmount;
+        } else if (currentTime > startTime) {
+          // Calculate based on time elapsed
+          const totalDuration = endTime - startTime;
+          const elapsedDuration = currentTime - startTime;
+          const elapsedFraction = elapsedDuration / totalDuration;
+          const calculatedStreamed = totalAmount * elapsedFraction;
+
+          // Use the maximum of contract streamed and calculated streamed
+          // This handles the case where contract resets streamed after withdrawal
+          actualStreamed = Math.max(contractStreamed, calculatedStreamed);
+        }
+      }
+
       // Format the stream data
       const stream: Stream = {
         id: streamId,
@@ -699,11 +769,12 @@ export function usePaymentStream() {
         tokenAddress: streamData[2],
         tokenSymbol,
         amount: formatUnits(streamData[3], decimals),
-        streamed: formatUnits(streamData[4], decimals),
-        startTime: Number(streamData[5]),
-        endTime: Number(streamData[6]),
-        status: Number(streamData[7]),
-        milestones: [] // Initialize with empty array
+        streamed: actualStreamed.toFixed(decimals === 2 ? 2 : 6),
+        startTime: startTime,
+        endTime: endTime,
+        status: status,
+        milestones: [], // Initialize with empty array
+        withdrawn: contractStreamed.toFixed(decimals === 2 ? 2 : 6) // Track what was actually withdrawn from contract
       };
 
       // Only fetch milestones if the stream is active or paused
@@ -846,9 +917,18 @@ export function usePaymentStream() {
         throw new Error("Could not fetch stream details");
       }
 
+      // Calculate the actual withdrawable amount (streamed - already withdrawn)
+      const totalStreamed = Number(streamBefore.streamed);
+      const alreadyWithdrawn = Number(streamBefore.withdrawn || '0');
+      const withdrawableAmount = totalStreamed - alreadyWithdrawn;
+
       // Check if there are tokens to claim
-      if (Number(streamBefore.streamed) <= 0) {
-        console.log('No tokens to claim for stream:', streamId);
+      if (withdrawableAmount <= 0) {
+        console.log('No tokens to claim for stream:', streamId, {
+          totalStreamed,
+          alreadyWithdrawn,
+          withdrawableAmount
+        });
         toast.error('No tokens available to claim');
         return null;
       }
@@ -875,9 +955,19 @@ export function usePaymentStream() {
         const claimedAmount = Number(streamBefore.streamed).toFixed(4);
 
         // Show success message with claimed amount
+        const tokenSymbol = await getTokenSymbol(streamBefore.tokenAddress);
+        const formattedAmount = withdrawableAmount.toFixed(tokenSymbol === 'IDRX' ? 2 : 6);
+
         toast.success(
-          `Successfully claimed ${claimedAmount} ${streamBefore.tokenSymbol} from stream!`,
-          { duration: 5000 }
+          `Successfully claimed ${formattedAmount} ${tokenSymbol} from stream!`,
+          {
+            duration: 5000,
+            description: `Transaction: ${hash}`,
+            action: {
+              label: 'View on Explorer',
+              onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${hash}`, '_blank')
+            }
+          }
         );
 
         // Log detailed information about the claim
@@ -887,6 +977,9 @@ export function usePaymentStream() {
           token: streamBefore.tokenSymbol,
           transactionHash: hash
         });
+
+        // Clear the stream from cache to force a fresh fetch
+        streamCache.delete(streamId);
 
         // Get stream details after withdrawal to check if it's fully claimed
         const streamAfter = await getStreamDetails(streamId);
@@ -908,6 +1001,9 @@ export function usePaymentStream() {
             }).then(({ request }) => writeContractAction(config, request));
 
             console.log('Stream status updated to Completed');
+
+            // Clear cache again after status update
+            streamCache.delete(streamId);
           } catch (error) {
             console.error('Error updating stream status to Completed:', error);
             // Don't throw here, as the withdrawal was successful
@@ -965,8 +1061,13 @@ export function usePaymentStream() {
       return true;
     }
 
-    // Check if the stream has no tokens left to claim (streamed amount is 0)
-    if (Number(stream.streamed) <= 0) {
+    // Calculate withdrawable amount (streamed - withdrawn)
+    const totalStreamed = Number(stream.streamed);
+    const alreadyWithdrawn = Number(stream.withdrawn || '0');
+    const withdrawableAmount = totalStreamed - alreadyWithdrawn;
+
+    // Check if there are no tokens left to claim
+    if (withdrawableAmount <= 0) {
       return true;
     }
 
@@ -1009,6 +1110,7 @@ export function usePaymentStream() {
 
     // Function to update stream data in real-time without fetching from blockchain
     const updateStreamData = useCallback(() => {
+      // Use a consistent timestamp for all calculations to ensure synchronization
       const now = Math.floor(Date.now() / 1000);
 
       setStreams(prevStreams => {
@@ -1023,23 +1125,45 @@ export function usePaymentStream() {
           const endTime = stream.endTime;
           const totalAmount = Number(stream.amount);
 
-          // If stream hasn't started yet or has ended, don't update
-          if (now < startTime || now >= endTime) {
-            return stream;
+          // If stream hasn't started yet, return with 0 streamed
+          if (now < startTime) {
+            return {
+              ...stream,
+              streamed: '0'
+            };
+          }
+
+          // If stream has ended, return with full amount streamed
+          if (now >= endTime) {
+            return {
+              ...stream,
+              streamed: stream.amount,
+              status: StreamStatus.Completed
+            };
           }
 
           // Calculate elapsed time as a fraction of total duration
           const totalDuration = endTime - startTime;
-          const elapsedDuration = Math.min(now - startTime, totalDuration);
+          const elapsedDuration = now - startTime;
           const elapsedFraction = elapsedDuration / totalDuration;
 
-          // Calculate new streamed amount
-          const newStreamed = (totalAmount * elapsedFraction).toFixed(6);
+          // Calculate new streamed amount with higher precision
+          const calculatedStreamed = (totalAmount * elapsedFraction);
+
+          // Get the amount already withdrawn from contract
+          const alreadyWithdrawn = Number(stream.withdrawn || '0');
+
+          // The actual streamed amount should be at least what was already withdrawn
+          // plus any additional streaming since the last withdrawal
+          const actualStreamed = Math.max(calculatedStreamed, alreadyWithdrawn);
+
+          // Format to appropriate decimal places based on token
+          const formattedStreamed = actualStreamed.toFixed(stream.token === 'IDRX' ? 2 : 6);
 
           // Update the stream with new streamed amount
           return {
             ...stream,
-            streamed: newStreamed
+            streamed: formattedStreamed
           };
         });
       });

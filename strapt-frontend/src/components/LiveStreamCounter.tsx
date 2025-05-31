@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StreamStatus } from '@/hooks/use-payment-stream';
 
 interface LiveStreamCounterProps {
@@ -10,11 +10,12 @@ interface LiveStreamCounterProps {
   token: string;
   streamId?: string;
   onStreamComplete?: (streamId: string) => void;
+  withdrawn?: string; // Amount already withdrawn from contract
 }
 
 /**
  * Component to display a live counter of streamed tokens
- * Updates every second for active streams
+ * Updates every second for active streams with precise calculations
  */
 const LiveStreamCounter = ({
   startTime,
@@ -24,10 +25,14 @@ const LiveStreamCounter = ({
   status,
   token,
   streamId,
-  onStreamComplete
+  onStreamComplete,
+  withdrawn = '0'
 }: LiveStreamCounterProps) => {
   const [currentStreamed, setCurrentStreamed] = useState(streamed);
   const [percentage, setPercentage] = useState(0);
+
+  // Calculate withdrawable amount (streamed - withdrawn)
+  const withdrawableAmount = Number(currentStreamed) - Number(withdrawn);
 
   // Reset the UI when streamed amount changes (e.g., after claiming)
   // or when status changes
@@ -92,7 +97,9 @@ const LiveStreamCounter = ({
         totalAmount
       );
 
-      setCurrentStreamed(streamedSoFar.toFixed(6));
+      // Format to appropriate decimal places based on token type
+      const formattedStreamed = streamedSoFar.toFixed(token === 'IDRX' ? 2 : 6);
+      setCurrentStreamed(formattedStreamed);
       const newPercentage = (streamedSoFar / totalAmount) * 100;
       setPercentage(newPercentage);
 
@@ -106,8 +113,8 @@ const LiveStreamCounter = ({
     // Calculate initial value
     calculateStreamed();
 
-    // Set up interval for active streams
-    const interval = setInterval(calculateStreamed, 5000);
+    // Set up interval for active streams - update every second for real-time feel
+    const interval = setInterval(calculateStreamed, 1000);
     return () => clearInterval(interval);
   }, [startTime, endTime, amount, status, streamId, onStreamComplete]);
 
@@ -142,6 +149,14 @@ const LiveStreamCounter = ({
           {percentage.toFixed(1)}%
         </span>
       </div>
+      {withdrawableAmount > 0 && (
+        <div className="flex justify-between text-xs">
+          <span className="text-green-600 dark:text-green-400">Claimable</span>
+          <span className="text-green-600 dark:text-green-400 font-medium">
+            {withdrawableAmount.toFixed(token === 'IDRX' ? 2 : 6)} {token}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

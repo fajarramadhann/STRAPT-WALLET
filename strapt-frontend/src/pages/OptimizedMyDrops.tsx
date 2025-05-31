@@ -72,11 +72,11 @@ const OptimizedMyDrops = () => {
     try {
       setRefundingDrops(prev => ({ ...prev, [dropId]: true }));
 
-      await refundExpiredDrop(dropId);
+      const result = await refundExpiredDrop(dropId);
 
       toast({
         title: 'Success',
-        description: `Successfully refunded drop`
+        description: 'Successfully refunded drop'
       });
 
       // Reload drops after refund
@@ -277,7 +277,10 @@ const OptimizedMyDrops = () => {
             <Button
               onClick={() => {
                 navigator.clipboard.writeText(currentQRLink);
-                toast.success('Link copied to clipboard');
+                toast({
+                  title: 'Success',
+                  description: 'Link copied to clipboard'
+                });
               }}
             >
               <Share2 className="h-4 w-4 mr-2" />

@@ -338,7 +338,13 @@ export const TransferProvider = ({ children }: { children: ReactNode }) => {
           });
 
           if (receipt.status === 'success') {
-            toast.success("Direct transfer successful");
+            toast.success("Direct transfer successful", {
+              description: `Transaction: ${hash}`,
+              action: {
+                label: 'View on Explorer',
+                onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${hash}`, '_blank')
+              }
+            });
 
             // Reset approval state for next transfer
             setIsApproved(false);

@@ -424,7 +424,7 @@ export function useStraptDrop() {
 
         setCurrentDropId(dropId);
         // Success toast will be shown by the component
-        return dropId;
+        return { dropId, transactionHash: createHash };
       } catch (error) {
         console.error('Error creating drop:', error);
         // Don't show toast here, let the calling component handle it
@@ -446,6 +446,11 @@ export function useStraptDrop() {
     try {
       setIsLoading(true);
       setIsClaiming(true);
+
+      // Validate drop ID format before making any calls
+      if (!dropId || !dropId.startsWith('0x') || dropId.length !== 66) {
+        throw new Error(`Invalid drop ID format: ${dropId}. Expected a 66-character hex string starting with 0x.`);
+      }
 
       if (!isConnected || !address) {
         console.error("No wallet connected");
@@ -511,7 +516,13 @@ export function useStraptDrop() {
           console.warn('Could not find claimed amount in logs, using default value:', claimedAmount.toString());
         }
 
-        toast.success('Successfully claimed tokens from STRAPT Drop!');
+        toast.success('Successfully claimed tokens from STRAPT Drop!', {
+          description: `Transaction: ${claimHash}`,
+          action: {
+            label: 'View on Explorer',
+            onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${claimHash}`, '_blank')
+          }
+        });
         return claimedAmount;
       } catch (error) {
         console.error('Error claiming drop:', error);
@@ -535,6 +546,11 @@ export function useStraptDrop() {
       setIsLoading(true);
       // We still set isRefunding for backward compatibility, but the UI uses per-drop state
       setIsRefunding(true);
+
+      // Validate drop ID format before making any calls
+      if (!dropId || !dropId.startsWith('0x') || dropId.length !== 66) {
+        throw new Error(`Invalid drop ID format: ${dropId}. Expected a 66-character hex string starting with 0x.`);
+      }
 
       if (!isConnected || !address) {
         console.error("No wallet connected");
@@ -572,7 +588,13 @@ export function useStraptDrop() {
         const refundReceipt = await waitForTransactionReceipt(config, { hash: refundHash });
         console.log('Refund transaction confirmed:', refundReceipt);
 
-        toast.success('Successfully refunded expired STRAPT Drop');
+        toast.success('Successfully refunded expired STRAPT Drop', {
+          description: `Transaction: ${refundHash}`,
+          action: {
+            label: 'View on Explorer',
+            onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${refundHash}`, '_blank')
+          }
+        });
         return refundReceipt;
       } catch (error) {
         console.error('Error refunding drop:', error);
@@ -592,6 +614,11 @@ export function useStraptDrop() {
   // Get drop info
   const getDropInfo = async (dropId: string): Promise<DropInfo> => {
     try {
+      // Validate drop ID format before making the contract call
+      if (!dropId || !dropId.startsWith('0x') || dropId.length !== 66) {
+        throw new Error(`Invalid drop ID format: ${dropId}. Expected a 66-character hex string starting with 0x.`);
+      }
+
       const result = await readContract(config, {
         address: STRAPT_DROP_ADDRESS,
         abi: StraptDropABI.abi,
@@ -621,6 +648,12 @@ export function useStraptDrop() {
   // Check if an address has claimed from a drop
   const hasAddressClaimed = async (dropId: string, userAddress: string): Promise<boolean> => {
     try {
+      // Validate drop ID format before making the contract call
+      if (!dropId || !dropId.startsWith('0x') || dropId.length !== 66) {
+        console.error(`Invalid drop ID format: ${dropId}. Expected a 66-character hex string starting with 0x.`);
+        return false;
+      }
+
       const result = await readContract(config, {
         address: STRAPT_DROP_ADDRESS,
         abi: StraptDropABI.abi,

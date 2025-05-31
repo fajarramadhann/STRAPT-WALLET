@@ -12,7 +12,7 @@ import { formatUnits } from 'viem';
 import contractConfig from '@/contracts/contract-config.json';
 import QRCodeScanner from '@/components/QRCodeScanner';
 import { motion, AnimatePresence } from 'framer-motion';
-import confetti from 'canvas-confetti';
+import { useConfetti } from '@/hooks/use-confetti';
 
 const StraptDropClaim = () => {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ const StraptDropClaim = () => {
   const { toast } = useToast();
   const { isConnected, address } = useXellarWallet();
   const { getDropInfo, claimDrop, hasAddressClaimed, isLoading, isClaiming } = useStraptDrop();
+  const { triggerClaimConfetti } = useConfetti();
 
   // State
   const [dropId, setDropId] = useState<string | null>(null);
@@ -108,38 +109,7 @@ const StraptDropClaim = () => {
   // State for success animation
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
-  // Function to trigger confetti
-  const triggerConfetti = () => {
-    const duration = 3 * 1000;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
 
-    function randomInRange(min: number, max: number) {
-      return Math.random() * (max - min) + min;
-    }
-
-    const interval = setInterval(() => {
-      const timeLeft = animationEnd - Date.now();
-
-      if (timeLeft <= 0) {
-        return clearInterval(interval);
-      }
-
-      const particleCount = 50 * (timeLeft / duration);
-
-      // Since particles fall down, start a bit higher than random
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: randomInRange(0, 0.2) }
-      });
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: randomInRange(0, 0.2) }
-      });
-    }, 250);
-  };
 
   // Handle claim
   const handleClaim = async () => {
@@ -168,7 +138,7 @@ const StraptDropClaim = () => {
       setShowSuccessAnimation(true);
 
       // Trigger confetti
-      triggerConfetti();
+      triggerClaimConfetti();
 
       // Hide success animation after 5 seconds
       setTimeout(() => {

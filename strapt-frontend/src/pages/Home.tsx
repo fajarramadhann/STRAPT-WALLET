@@ -7,6 +7,8 @@ import {
   UserPlus,
   Copy,
   Droplets,
+  CreditCard,
+  DollarSign,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import QuickAction from "@/components/QuickAction";
@@ -17,9 +19,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import EnhancedUsernameRegistration from "@/components/EnhancedUsernameRegistration";
 import ReceivedStats from "@/components/ReceivedStats";
@@ -87,6 +92,11 @@ const Home = () => {
   const [showQR, setShowQR] = useState(false);
   const [showUsernameReg, setShowUsernameReg] = useState(false);
 
+  // Request funds state
+  const [requestAmount, setRequestAmount] = useState('');
+  const [requestToken, setRequestToken] = useState('IDRX');
+  const [requestMessage, setRequestMessage] = useState('');
+
   // USDC Faucet functionality
   const { claimTokens, isClaiming, userClaimInfo } = useUSDCFaucet();
 
@@ -121,6 +131,25 @@ const Home = () => {
     }
   };
 
+  const handleOnramp = () => {
+    // Placeholder for onramp functionality
+    toast.success("Onramp feature coming soon!", {
+      description: "This will integrate with payment providers"
+    });
+  };
+
+  const generateRequestQR = () => {
+    const requestData = {
+      type: 'request',
+      address,
+      amount: requestAmount,
+      token: requestToken,
+      message: requestMessage,
+      timestamp: new Date().toISOString(),
+    };
+    return JSON.stringify(requestData);
+  };
+
   return (
     <div className="space-y-6">
       {/* Wallet Balance */}
@@ -130,7 +159,7 @@ const Home = () => {
         <Card className="overflow-hidden dark:border-primary/20 border-primary/30">
           <CardHeader className="bg-gradient-to-r from-primary to-accent text-white">
             <CardTitle className="text-xl text-white flex items-center justify-between">
-              Your Balance
+              Your IDRX Balance
               <Button
                 size="sm"
                 variant="ghost"
@@ -174,7 +203,7 @@ const Home = () => {
                 </div>
               )}
             </div>
-            <div className="flex justify-center gap-4 mt-4">
+            <div className="flex justify-center gap-3 mt-4">
               <Button
                 variant="secondary"
                 className="flex items-center gap-2 rounded-xl"
@@ -190,6 +219,14 @@ const Home = () => {
               >
                 <Droplets className="h-4 w-4" />
                 {isClaiming ? "Claiming..." : "Topup"}
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex items-center gap-2 rounded-xl"
+                onClick={handleOnramp}
+              >
+                <CreditCard className="h-4 w-4" />
+                Onramp
               </Button>
             </div>
           </CardContent>
@@ -340,37 +377,104 @@ const Home = () => {
       )}
       */}
 
-      {/* QR Code Dialog */}
+      {/* Enhanced Receive Dialog with Request Funds */}
       <Dialog open={showQR} onOpenChange={setShowQR}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Your Wallet QR Code</DialogTitle>
+            <DialogTitle>Receive Funds</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <QRCode value={address || ''} size={200} />
-            <p className="text-sm font-medium">Your Wallet Address</p>
-            <p className="text-xs text-muted-foreground">
-              {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
-            </p>
-            <div className="flex flex-col w-full gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (address) {
-                    navigator.clipboard.writeText(address);
-                    toast.success("Address copied to clipboard");
-                  }
-                }}
-                disabled={!address}
-              >
-                <Copy className="h-4 w-4 mr-1" /> Copy Address
-              </Button>
-              <QRCodeScanner
-                buttonVariant="outline"
-                buttonText="Scan QR Code to Claim"
-              />
-            </div>
-          </div>
+          <Tabs defaultValue="receive" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="receive">Receive</TabsTrigger>
+              <TabsTrigger value="request">Request</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="receive" className="space-y-4">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <QRCode value={address || ''} size={200} />
+                <p className="text-sm font-medium">Your Wallet Address</p>
+                <p className="text-xs text-muted-foreground text-center">
+                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
+                </p>
+                <div className="flex flex-col w-full gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (address) {
+                        navigator.clipboard.writeText(address);
+                        toast.success("Address copied to clipboard");
+                      }
+                    }}
+                    disabled={!address}
+                  >
+                    <Copy className="h-4 w-4 mr-1" /> Copy Address
+                  </Button>
+                  <QRCodeScanner
+                    buttonVariant="outline"
+                    buttonText="Scan QR Code to Claim"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="request" className="space-y-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Amount</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    placeholder="Enter amount"
+                    value={requestAmount}
+                    onChange={(e) => setRequestAmount(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="token">Token</Label>
+                  <Select value={requestToken} onValueChange={setRequestToken}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select token" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="IDRX">IDRX</SelectItem>
+                      <SelectItem value="USDC">USDC</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="message">Message (Optional)</Label>
+                  <Input
+                    id="message"
+                    placeholder="What's this for?"
+                    value={requestMessage}
+                    onChange={(e) => setRequestMessage(e.target.value)}
+                  />
+                </div>
+
+                {requestAmount && (
+                  <div className="flex flex-col items-center justify-center space-y-4 pt-4">
+                    <QRCode value={generateRequestQR()} size={200} />
+                    <p className="text-sm font-medium">Request: {requestAmount} {requestToken}</p>
+                    {requestMessage && (
+                      <p className="text-xs text-muted-foreground text-center">"{requestMessage}"</p>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generateRequestQR());
+                        toast.success("Request link copied to clipboard");
+                      }}
+                      className="w-full"
+                    >
+                      <Copy className="h-4 w-4 mr-1" /> Copy Request Link
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 

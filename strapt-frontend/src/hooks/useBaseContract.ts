@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import { 
-  readContract, 
-  writeContract, 
-  waitForTransactionReceipt, 
-  simulateContract, 
-  getAccount 
+import {
+  readContract,
+  writeContract,
+  waitForTransactionReceipt,
+  simulateContract,
+  getAccount
 } from 'wagmi/actions';
 import { config } from '@/providers/XellarProvider';
 import { useAccount } from 'wagmi';
@@ -92,11 +92,11 @@ export function useBaseContract() {
   const handleError = useCallback((error: any, defaultMessage: string = 'Transaction failed') => {
     console.error('Contract error:', error);
     setIsError(true);
-    
+
     // Extract error message
     const errorMessage = error?.message || String(error);
     setErrorMessage(errorMessage);
-    
+
     // Show toast with error message
     if (errorMessage.includes('rejected') || errorMessage.includes('denied') || errorMessage.includes('cancelled')) {
       toast.error('Transaction cancelled', {
@@ -117,21 +117,21 @@ export function useBaseContract() {
   const readFromContract = useCallback(async <T>(options: ContractReadOptions): Promise<T | null> => {
     try {
       const { contractName, functionName, args, enabled = true } = options;
-      
+
       if (!enabled) {
         return null;
       }
-      
+
       const contractAddress = getContractAddress(contractName);
       const contractABI = await getContractABI(contractName);
-      
+
       const result = await readContract(config, {
         address: contractAddress,
         abi: contractABI,
         functionName,
         args,
       }) as T;
-      
+
       return result;
     } catch (error) {
       handleError(error, `Failed to read from ${options.contractName}`);
@@ -148,16 +148,16 @@ export function useBaseContract() {
     try {
       resetState();
       setIsLoading(true);
-      
+
       if (!isConnected || !address) {
         toast.error('No wallet connected');
         throw new Error('No wallet connected');
       }
-      
+
       const { contractName, functionName, args, value } = options;
       const contractAddress = getContractAddress(contractName);
       const contractABI = await getContractABI(contractName);
-      
+
       // Simulate the transaction first
       const { request } = await simulateContract(config, {
         address: contractAddress,
@@ -167,19 +167,25 @@ export function useBaseContract() {
         account: address,
         value,
       });
-      
+
       // Send the transaction
       const hash = await writeContract(config, request);
       setTransactionHash(hash);
-      
+
       // Wait for confirmation
       setIsConfirming(true);
       const receipt = await waitForTransactionReceipt(config, { hash });
       setIsConfirming(false);
-      
+
       if (receipt.status === 'success') {
         setIsConfirmed(true);
-        toast.success('Transaction confirmed');
+        toast.success('Transaction confirmed', {
+          description: `Transaction: ${hash}`,
+          action: {
+            label: 'View on Explorer',
+            onClick: () => window.open(`https://sepolia-blockscout.lisk.com/tx/${hash}`, '_blank')
+          }
+        });
         return hash;
       } else {
         throw new Error('Transaction failed');
@@ -200,11 +206,11 @@ export function useBaseContract() {
   const getContractEvents = useCallback(async <T>(options: ContractEventOptions): Promise<T[]> => {
     try {
       const { contractName, eventName, fromBlock = BigInt(0), toBlock = 'latest', args } = options;
-      
+
       // This is a simplified implementation
       // In a real app, you would use a provider to get logs and decode them
       console.log(`Getting ${eventName} events from ${contractName}`);
-      
+
       // Return empty array for now
       return [] as T[];
     } catch (error) {
@@ -221,7 +227,7 @@ export function useBaseContract() {
     transactionHash,
     isConfirming,
     isConfirmed,
-    
+
     // Methods
     getContractAddress,
     getContractABI,

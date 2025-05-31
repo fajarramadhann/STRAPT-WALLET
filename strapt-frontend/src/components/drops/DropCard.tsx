@@ -94,8 +94,15 @@ const DropCard = memo(({
     const link = generateDropLink();
 
     navigator.clipboard.writeText(link)
-      .then(() => toast.success('Link copied to clipboard'))
-      .catch(() => toast.error('Failed to copy link'));
+      .then(() => toast({
+        title: 'Success',
+        description: 'Link copied to clipboard'
+      }))
+      .catch(() => toast({
+        title: 'Error',
+        description: 'Failed to copy link',
+        variant: 'destructive'
+      }));
   };
 
   const handleShowQR = () => {
